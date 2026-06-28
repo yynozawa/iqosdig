@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>中折れ発掘 — IQOS救出</title>
+<style>
+  :root {
+    --bg-top: #1a1d29;
+    --bg-bottom: #0a0c14;
+    --accent: #ff6b35;
+    --good: #4ade80;
+    --bad: #f43f5e;
+    --tight: #5a8cff;
+    --text: #f4f6fb;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: radial-gradient(ellipse at 50% 30%, var(--bg-top), var(--bg-bottom));
+    color: var(--text);
+    touch-action: none;
+    user-select: none;
+  }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  /* ---- HUD ---- */
+  #hud {
+    position: fixed; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: env(safe-area-inset-top, 16px) 16px 24px;
+  }
+  #topbar { display: flex; justify-content: space-between; align-items: flex-start; }
+  .pill {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px; padding: 8px 16px;
+    backdrop-filter: blur(8px); font-weight: 700;
+  }
+  .pill small { display:block; font-size: 10px; opacity: 0.6; font-weight: 600; letter-spacing: 1px; }
+  .pill span { font-size: 22px; }
+  #best span { color: var(--accent); }
+
+  /* ---- meters (浮き具合 / 崩れ) ---- */
+  #meter {
+    position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    width: min(260px, 78vw); pointer-events: none;
+    opacity: 0; transition: opacity .25s; display: flex; flex-direction: column; gap: 7px;
+  }
+  #meter.show { opacity: 1; }
+  .mrow { display: flex; align-items: center; gap: 8px; }
+  .mlab { font-size: 11px; letter-spacing: 1px; opacity: .75; width: 56px; text-align: right; flex: none; }
+  .mbar { flex: 1; height: 9px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); }
+  .mfill { height: 100%; width: 0%; transition: width .12s ease-out; }
+  .mfill.loose { background: linear-gradient(90deg,#2f8f5a,var(--good)); }
+  .mfill.crumb { background: linear-gradient(90deg,#facc15,var(--bad)); }
+
+  /* ---- tool selector ---- */
+  #tools {
+    position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    display: flex; gap: 8px; pointer-events: none; opacity: 0; transition: opacity .25s;
+    max-width: 96vw;
+  }
+  #tools.show { opacity: 1; pointer-events: auto; }
+  .tool {
+    flex: 1 1 0; min-width: 64px; max-width: 96px;
+    background: rgba(255,255,255,0.06); border: 1.5px solid rgba(255,255,255,0.14);
+    border-radius: 14px; color: var(--text); padding: 8px 4px 6px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    backdrop-filter: blur(8px); transition: all .15s;
+  }
+  .tool svg { width: 24px; height: 24px; opacity: .85; }
+  .tool .tname { font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .tool.sel { border-color: var(--accent); background: rgba(255,107,53,0.16); }
+  .tool.sel svg { opacity: 1; }
+  .tool.cool { opacity: .35; filter: grayscale(1); }
+  .tool:active { transform: scale(.95); }
+
+  /* ---- instruction ---- */
+  #hint {
+    position: fixed; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    width: max-content; max-width: 92vw; text-align:center;
+    font-size: clamp(12px, 3.4vw, 14px); line-height: 1.6; opacity: 0;
+    pointer-events: none; transition: opacity .3s;
+  }
+  #hint b { color: var(--accent); }
+
+  /* ---- result toast ---- */
+  #result {
+    position: fixed; left: 50%; top: 38%; transform: translate(-50%,-50%) scale(.7);
+    text-align:center; opacity: 0; pointer-events: none; transition: all .35s cubic-bezier(.2,1.4,.4,1);
+    width: 92vw;
+  }
+  #result.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  #resultTitle { font-size: clamp(32px, 10vw, 52px); font-weight: 900; letter-spacing: 1px; }
+  #resultSub { font-size: clamp(15px, 4.6vw, 18px); margin-top: 6px; opacity: .85; }
+  #resultScore { font-size: clamp(13px, 3.6vw, 15px); margin-top: 10px; opacity:.7; }
+
+  /* ---- start / retry button ---- */
+  #cta {
+    position: fixed; left: 50%; bottom: calc(40px + env(safe-area-inset-bottom)); transform: translate(-50%,20px);
+    background: var(--accent); color: #1a1018; border: none;
+    font-size: clamp(16px, 4.6vw, 18px); font-weight: 800; padding: clamp(13px,3.8vw,16px) clamp(32px,9vw,40px); border-radius: 999px;
+    box-shadow: 0 10px 30px rgba(255,107,53,.4); cursor: pointer;
+    opacity: 0; transition: all .3s; pointer-events: none;
+  }
+  #cta.show { opacity: 1; transform: translate(-50%,0); pointer-events: auto; }
+  #cta:active { transform: translate(-50%,2px) scale(.97); }
+
+  #title {
+    position: fixed; inset: 0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap: 8px; text-align:center; padding: 0 20px;
+    background: radial-gradient(ellipse at 50% 35%, rgba(255,107,53,.12), transparent 60%);
+    transition: opacity .4s; z-index: 5;
+  }
+  #title h1 { font-size: clamp(30px, 9vw, 44px); font-weight: 900; letter-spacing: 1px; }
+  #title h1 small { display:block; font-size:clamp(12px,3.4vw,14px); letter-spacing:4px; color:var(--accent); margin-bottom:8px; font-weight:700;}
+  #title p { opacity:.75; font-size: clamp(13px,3.6vw,14px); line-height:1.9; margin: 6px 0 28px; max-width: 32em;}
+  #title p b { color: var(--accent); }
+  #title.hide { opacity: 0; pointer-events: none; }
+  #startBtn { background:var(--accent);color:#1a1018;border:none;font-size:18px;font-weight:800;padding:16px 44px;border-radius:999px;box-shadow:0 10px 30px rgba(255,107,53,.4);cursor:pointer; }
+
+  #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 6; }
+
+  @media (max-height: 480px) {
+    #meter { bottom: calc(70px + env(safe-area-inset-bottom)); }
+    #hint { bottom: calc(118px + env(safe-area-inset-bottom)); }
+    #result { top: 34%; }
+    #title p { margin: 6px 0 16px; }
+  }
+  @media (max-width: 360px) {
+    .pill { padding: 6px 12px; } .pill span { font-size: 18px; }
+    .tool { min-width: 58px; } .tool .tname { font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="flash"></div>
+<div id="hud">
+  <div id="topbar">
+    <div style="display:flex;gap:8px">
+      <div class="pill" id="level"><small>LEVEL</small><span>1</span></div>
+      <div class="pill" id="combo"><small>COMBO</small><span>0</span></div>
+    </div>
+    <div class="pill" id="best"><small>BEST</small><span>0</span></div>
+  </div>
+</div>
+
+<div id="hint"><b>光る隙間</b>を狙って外へフリック＝こじる<br>道具で手応えが変わる・隙間以外をドラッグで視点回転</div>
+
+<div id="meter">
+  <div class="mrow"><span class="mlab">浮き具合</span><div class="mbar"><div id="loose" class="mfill loose"></div></div></div>
+  <div class="mrow"><span class="mlab">崩れ</span><div class="mbar"><div id="crumb" class="mfill crumb"></div></div></div>
+</div>
+
+<div id="tools">
+  <button class="tool" data-tool="toothpick"><svg viewBox="0 0 24 24" fill="none"><path d="M4 20 L18 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 6 l3 -3" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></svg><span class="tname">つまようじ</span></button>
+  <button class="tool" data-tool="needle"><svg viewBox="0 0 24 24" fill="none"><path d="M5 20 L17 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="18.5" cy="6.5" r="2.4" stroke="currentColor" stroke-width="1.6"/></svg><span class="tname">針・ピン</span></button>
+  <button class="tool" data-tool="hook"><svg viewBox="0 0 24 24" fill="none"><path d="M12 4 L12 13 a4 4 0 1 1 -5 -1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="tname">フック</span></button>
+  <button class="tool" data-tool="tweezers"><svg viewBox="0 0 24 24" fill="none"><path d="M9 3 L11.4 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15 3 L12.6 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11.4 13 L12 21 L12.6 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="tname">ピンセット</span></button>
+</div>
+
+<div id="result">
+  <div id="resultTitle"></div>
+  <div id="resultSub"></div>
+  <div id="resultScore"></div>
+</div>
+
+<button id="cta">もう一回</button>
+
+<div id="title">
+  <h1><small>NAKAORE DIG</small>中折れ発掘</h1>
+  <p>IQOSのチャンバーに残った<b>中折れスティック</b>を、道具でほじって救出せよ。<br><b>光る隙間</b>に道具を差し込み、外側へこじって少しずつ浮かせる。<br>道具ごとに手応えが違う。雑にやると…崩れる。</p>
+  <button id="startBtn">掘る</button>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+/* =========================================================
+   中折れ発掘 — Three.js
+   操作: 光る隙間に道具を差し込み、外へフリックして“こじる”
+   道具を選択 / 隙間以外をドラッグで視点回転・ピンチでズーム
+   ========================================================= */
+
+const el = (id) => document.getElementById(id);
+const hud = { level: el('level').querySelector('span'), combo: el('combo').querySelector('span'), best: el('best').querySelector('span') };
+const toolsEl = el('tools');
+
+// ---------- Scene ----------
+const app = el('app');
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0a0c14, 16, 34);
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 100);
+const LOOK_Y = 1.6;                 // 注視点＝本体上部（口より少し下げて全体を見せる）
+camera.position.set(0.9, 3.8, 2.7); // 斜め3/4ビュー（立体感を出す）
+camera.lookAt(0, LOOK_Y, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+app.appendChild(renderer.domElement);
+
+// ---------- Environment（金属の映り込み） ----------
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+// ---------- 視点操作（隙間以外をドラッグ=回転 / ピンチ=ズーム） ----------
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, LOOK_Y, 0);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.enablePan = false;
+controls.minDistance = 4; controls.maxDistance = 16;
+controls.minPolarAngle = 0.12; controls.maxPolarAngle = 1.35;
+controls.rotateSpeed = 0.8;
+controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE };
+controls.update();
+
+// ---------- Lights ----------
+scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+const key = new THREE.DirectionalLight(0xffffff, 1.1);
+key.position.set(4, 9, 7); key.castShadow = true;
+key.shadow.mapSize.set(2048,2048); key.shadow.camera.near=1; key.shadow.camera.far=30;
+key.shadow.bias = -0.0004;
+scene.add(key);
+const rim = new THREE.PointLight(0xffffff, 0.6, 30); rim.position.set(-5, 3, -4); scene.add(rim);
+const fill = new THREE.PointLight(0xbcd2ff, 0.5, 30); fill.position.set(5, 1, 6); scene.add(fill);
+
+// ---------- Floor ----------
+const floor = new THREE.Mesh(new THREE.CircleGeometry(14, 48),
+  new THREE.MeshStandardMaterial({ color:0x14161f, roughness:0.9, metalness:0.1 }));
+floor.rotation.x = -Math.PI/2; floor.position.y = -2.4; floor.receiveShadow = true;
+scene.add(floor);
+
+// ---------- IQOS ILUMA ONE 風ホルダー ----------
+const holder = new THREE.Group();
+const DEPTH = 0.55;   // 平たい楕円断面：奥行き/幅（前後を薄く）
+const TOP_SLANT = 0.22;   // 上面の前傾（前=+z 側が低い斜めカット）
+const BODY_COLOR = 0x5a2bd6;
+const bodyMat = new THREE.MeshPhysicalMaterial({
+  color: BODY_COLOR, metalness: 0.85, roughness: 0.38,
+  clearcoat: 1.0, clearcoatRoughness: 0.22, envMapIntensity: 1.2
+});
+// 角丸長方形（フラット面＋丸い角）の断面 ＋ 丸い縦穴(挿入口) を押し出し
+function roundedRect(w, h, r){
+  const s = new THREE.Shape();
+  s.moveTo(-w+r, -h);
+  s.lineTo(w-r, -h);  s.quadraticCurveTo(w, -h, w, -h+r);
+  s.lineTo(w, h-r);   s.quadraticCurveTo(w, h, w-r, h);
+  s.lineTo(-w+r, h);  s.quadraticCurveTo(-w, h, -w, h-r);
+  s.lineTo(-w, -h+r); s.quadraticCurveTo(-w, -h, -w+r, -h);
+  return s;
+}
+const HALF_W = 0.50, HALF_D = 0.26, CORNER = 0.20, BORE = 0.17;
+const HOLE_X = 0.20;   // 挿入口を中心から横(サイド=+x)へオフセット
+const BODY_BOT = -2.15, BODY_LEN = 4.4;
+const shape = roundedRect(HALF_W, HALF_D, CORNER);
+const boreHole = new THREE.Path(); boreHole.absarc(HOLE_X, 0, BORE, 0, Math.PI*2, true); shape.holes.push(boreHole);
+const bodyGeo = new THREE.ExtrudeGeometry(shape, {
+  depth: BODY_LEN, bevelEnabled: true, bevelThickness: 0.22, bevelSize: 0.16, bevelSegments: 6, curveSegments: 24
+});
+bodyGeo.rotateX(-Math.PI/2);            // 押し出し軸を縦(Y)へ
+bodyGeo.translate(0, BODY_BOT, 0);      // 底を BODY_BOT へ
+// 上面を前傾の斜めカットにシア（y>2.0 の頂点を z に応じて上下させる）
+{ const p = bodyGeo.attributes.position;
+  for(let i=0;i<p.count;i++){ const y=p.getY(i); if(y>2.0){ p.setY(i, y - TOP_SLANT*p.getZ(i)); } }
+  bodyGeo.computeVertexNormals(); }
+const holderBody = new THREE.Mesh(bodyGeo, bodyMat);
+holderBody.castShadow = true; holderBody.receiveShadow = true; holder.add(holderBody);
+
+const chamberMat = new THREE.MeshStandardMaterial({ color:0x0a0a0c, roughness:0.7, metalness:0.4 });
+const chamber = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.95, 36, 1, true), chamberMat);
+chamber.position.set(HOLE_X, 2.0, 0); holder.add(chamber);   // 丸い穴の内側ライナー（暗い）
+const chamberFloor = new THREE.Mesh(new THREE.CircleGeometry(0.16, 32),
+  new THREE.MeshStandardMaterial({ color:0x18181c, roughness:0.5, metalness:0.6 }));
+chamberFloor.rotation.x = -Math.PI/2; chamberFloor.position.set(HOLE_X, 1.62, 0); holder.add(chamberFloor);
+
+// ---------- 前面（蓋を寄せた側=+x）に バッテリー残量メーター＋電源ボタン ----------
+// ---------- 薄い側面（蓋を引く側＝左エッジ）に 電源ボタン＋バッテリーメーター ----------
+const sidePanel = new THREE.Group();
+sidePanel.position.set(-0.66, 1.05, 0);   // 左の狭い側面の実表面(bevel込み)
+sidePanel.rotation.y = -Math.PI/2;        // ローカル前面(+z)を左(-x)へ向ける
+holder.add(sidePanel);
+// メーター枠
+const meterHousing = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.9, 0.05),
+  new THREE.MeshStandardMaterial({ color:0x0d0a14, roughness:0.5, metalness:0.3 }));
+meterHousing.position.set(0, 0.15, 0.03); sidePanel.add(meterHousing);
+// 残量4セグ（点灯）
+const ledMat = new THREE.MeshStandardMaterial({ color:0xc8f5ff, emissive:0x4ade80, emissiveIntensity:3.0, roughness:0.3 });
+for(let i=0;i<4;i++){
+  const seg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.10, 0.04), ledMat);
+  seg.position.set(0, 0.45 - i*0.18, 0.06); sidePanel.add(seg);
+}
+const led = { material: ledMat };
+// 電源ボタン（リング付き）
+const button = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.08, 32),
+  new THREE.MeshStandardMaterial({ color:0x3a3346, roughness:0.4, metalness:0.5 }));
+button.rotation.x = Math.PI/2; button.position.set(0, -0.5, 0.06); sidePanel.add(button);
+const buttonRing = new THREE.Mesh(new THREE.TorusGeometry(0.145, 0.02, 14, 32),
+  new THREE.MeshStandardMaterial({ color:0x9fe8ff, emissive:0x2a6a8a, emissiveIntensity:1.2, roughness:0.4 }));
+buttonRing.position.set(0, -0.5, 0.055); sidePanel.add(buttonRing);
+
+// ---------- スライド式キャップ（横へスライドして挿入口＝中折れが露出） ----------
+const capPivot = new THREE.Group();
+capPivot.position.set(HOLE_X, 2.46, 0);  // サイド寄りの開口の真上。開く時は横へスライド退避
+const capLid = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.34, 0.08, 44), bodyMat);
+capLid.castShadow = true; capPivot.add(capLid);
+const capInner = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.03, 36), bodyMat);
+capInner.position.y = 0.05; capPivot.add(capInner);   // 上面の内側オーバル（本物のディテール）
+capPivot.rotation.x = Math.atan(TOP_SLANT);   // 斜めカットの上面に沿って傾ける
+capPivot.scale.z = 0.6;                        // 平たい上面に合わせて横長オーバルに
+holder.add(capPivot);
+let capAngle = 0, capTarget = 0;         // 0=閉 1=開（スライド量）
+const CAP_SLIDE_X = -0.62, CAP_RISE_Y = 0.10;   // 横へ退避＋わずかに持ち上がる
+
+scene.add(holder);   // 角丸長方形断面なので全体スケールは不要
+
+// ---------- GLBモデル（あれば本体外観を差し替え。なければ手作りモデルを使用） ----------
+// 位置合わせ用パラメータ（モデルに合わせて後で調整）
+const GLB_URL = './iqos.glb';
+const GLB = { scale: 1.0, x: 0, y: 0, z: 0, rotY: 0 };
+const glbGroup = new THREE.Group(); scene.add(glbGroup);
+new GLTFLoader().load(GLB_URL, (gltf)=>{
+  const m = gltf.scene;
+  m.traverse(o=>{ if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+  m.scale.setScalar(GLB.scale);
+  m.position.set(GLB.x, GLB.y, GLB.z);
+  m.rotation.y = GLB.rotY;
+  glbGroup.add(m);
+  // 手作りの本体シェルとキャップを隠す（チャンバー/残骸/マーカー/道具はそのまま流用）
+  holderBody.visible = false;
+  capPivot.visible = false;
+  console.log('[iqosdig] GLB loaded:', GLB_URL, gltf);
+}, undefined, ()=>{ console.log('[iqosdig] GLB未配置（手作りモデルを使用）:', GLB_URL); });
+
+// ---------- 中折れフラグメント（チャンバーに詰まった残骸） ----------
+const FRAG_BASE_Y = 2.0;
+const frag = new THREE.Group();
+const tobaccoMat = new THREE.MeshStandardMaterial({ color:0xe9dcc3, roughness:0.85 });
+const tornMat    = new THREE.MeshStandardMaterial({ color:0xb8a47e, roughness:1 });
+const strandMat  = new THREE.MeshStandardMaterial({ color:0x8a6f44, roughness:1 });
+
+// スティックは「円筒」（本体は楕円でもタバコは丸い）
+const fragBody = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.55, 32), tobaccoMat);
+fragBody.castShadow = true; frag.add(fragBody);
+
+const crownGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.2, 28, 1, true);
+{ const p = crownGeo.attributes.position;
+  for(let i=0;i<p.count;i++){ if(p.getY(i) > 0) p.setY(i, 0.02 + Math.random()*0.2); }
+  crownGeo.computeVertexNormals(); }
+const crown = new THREE.Mesh(crownGeo, tornMat); crown.position.y = 0.275; crown.castShadow = true; frag.add(crown);
+const innerFill = new THREE.Mesh(new THREE.CircleGeometry(0.13, 24),
+  new THREE.MeshStandardMaterial({ color:0x6b5a3c, roughness:1, side:THREE.DoubleSide }));
+innerFill.rotation.x = -Math.PI/2; innerFill.position.y = 0.30; frag.add(innerFill);
+for(let i=0;i<14;i++){
+  const len = 0.08 + Math.random()*0.26;
+  const strand = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.018, len, 5), strandMat);
+  const a = Math.random()*Math.PI*2, r = Math.random()*0.10;
+  strand.position.set(Math.cos(a)*r, 0.32 + len*0.4, Math.sin(a)*r);
+  strand.rotation.set((Math.random()-0.5)*0.9, Math.random()*Math.PI, (Math.random()-0.5)*0.9);
+  frag.add(strand);
+}
+frag.position.set(HOLE_X, FRAG_BASE_Y, 0);
+frag.visible = false;   // キャップが開くまで隠す（円筒のまま＝スケールしない）
+scene.add(frag);
+
+// ---------- 光る隙間マーカー（丸いスティックと楕円チャンバーの“隙間”＝幅広側にできる） ----------
+const MARK_R = 0.155, RIM_Y = 2.43;   // 丸い穴の縁（スティックとの隙間）
+const markerMat = new THREE.MeshBasicMaterial({ color:0xff6b35, transparent:true, opacity:0.9 });
+const marker = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.015, 10, 20), markerMat);
+marker.rotation.x = Math.PI/2; marker.visible = false; scene.add(marker);
+let markerAngle = 0, markerTight = false;
+function setMarker(){ markerAngle = Math.random()*Math.PI*2; markerTight = Math.random() < D.tightChance; }
+function markerWorld(){ return new THREE.Vector3(HOLE_X + Math.cos(markerAngle)*MARK_R, RIM_Y, Math.sin(markerAngle)*MARK_R); }
+
+// ---------- 道具の3Dモデル（先端=ローカル原点、柄が+Y方向） ----------
+const woodMat  = new THREE.MeshStandardMaterial({ color:0xd8b683, roughness:0.7, metalness:0.05 });
+const metalMat = new THREE.MeshPhysicalMaterial({ color:0xd2d6dc, metalness:0.95, roughness:0.18, clearcoat:0.4, envMapIntensity:1.3 });
+const headMat  = new THREE.MeshStandardMaterial({ color:0xff7aa8, roughness:0.5 });
+
+function buildToothpick(){
+  const g = new THREE.Group();
+  const b = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.004, 1.05, 14), woodMat);
+  b.position.y = 0.525; b.castShadow = true; g.add(b);
+  return g;
+}
+function buildNeedle(){
+  const g = new THREE.Group();
+  const b = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.0015, 1.0, 16), metalMat);
+  b.position.y = 0.5; b.castShadow = true; g.add(b);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 16), headMat);
+  head.position.y = 1.0; g.add(head);
+  return g;
+}
+function buildHook(){
+  const g = new THREE.Group();
+  const bend = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.22, 12), metalMat);
+  bend.position.set(0.066, 0.078, 0); bend.rotation.z = -0.7; bend.castShadow = true; g.add(bend);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.86, 12), metalMat);
+  shaft.position.set(0.13, 0.58, 0); shaft.castShadow = true; g.add(shaft);
+  return g;
+}
+function buildTweezers(){
+  const g = new THREE.Group();
+  const L = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.02, 12), metalMat);
+  L.position.set(-0.06, 0.5, 0); L.rotation.z = 0.12; L.castShadow = true; g.add(L);
+  const R = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.02, 12), metalMat);
+  R.position.set(0.06, 0.5, 0); R.rotation.z = -0.12; R.castShadow = true; g.add(R);
+  const band = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 0.05), metalMat);
+  band.position.y = 0.98; g.add(band);
+  return g;
+}
+
+const toolPivot = new THREE.Group(); scene.add(toolPivot);
+const toolModels = { toothpick: buildToothpick(), needle: buildNeedle(), hook: buildHook(), tweezers: buildTweezers() };
+for(const k in toolModels){ toolModels[k].visible = false; toolPivot.add(toolModels[k]); }
+toolPivot.visible = false;
+let toolLever = 0;
+
+const _up = new THREE.Vector3(0,1,0), _dir = new THREE.Vector3(), _out = new THREE.Vector3(), _q = new THREE.Quaternion();
+function updateToolTransform(){
+  _out.set(Math.cos(markerAngle), 0, Math.sin(markerAngle));
+  _dir.copy(_up).addScaledVector(_out, 0.55 + toolLever*0.6).normalize();  // 上+外向き、こじると外へ倒れる
+  _q.setFromUnitVectors(_up, _dir);
+  toolPivot.position.copy(markerWorld());
+  toolPivot.position.y += toolLever * 0.04;   // こじると少し持ち上がる
+  toolPivot.quaternion.copy(_q);
+}
+
+// ---------- Particles: 成功時の飛沫 ----------
+function makePoints(n, color, size){
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(n*3); geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const mat = new THREE.PointsMaterial({ color, size, transparent:true, opacity:0 });
+  const pts = new THREE.Points(geo, mat); scene.add(pts);
+  const vel = []; for(let i=0;i<n;i++) vel.push(new THREE.Vector3());
+  return { n, geo, pos, mat, vel };
+}
+function burstPts(P, origin, spread, up){
+  for(let i=0;i<P.n;i++){
+    P.pos[i*3]=origin.x; P.pos[i*3+1]=origin.y; P.pos[i*3+2]=origin.z;
+    const a=Math.random()*Math.PI*2, r=spread*(0.3+Math.random());
+    P.vel[i].set(Math.cos(a)*r, up*(0.5+Math.random()), Math.sin(a)*r);
+  }
+  P.geo.attributes.position.needsUpdate=true; P.mat.opacity=1;
+}
+function updatePts(P, g, fade){
+  if(P.mat.opacity<=0) return;
+  for(let i=0;i<P.n;i++){ P.vel[i].y -= g; P.pos[i*3]+=P.vel[i].x; P.pos[i*3+1]+=P.vel[i].y; P.pos[i*3+2]+=P.vel[i].z; }
+  P.geo.attributes.position.needsUpdate=true; P.mat.opacity = Math.max(0, P.mat.opacity-fade);
+}
+const spark = makePoints(60, 0xffd9a0, 0.12);  // 成功
+const crumb = makePoints(28, 0x9c7b46, 0.07);   // ほじり屑
+function burst(origin){ burstPts(spark, origin, 0.16, 0.2); }
+function crumbs(origin){ burstPts(crumb, origin, 0.10, 0.12); }
+
+// ---------- 煙 ----------
+function makeSoftTexture(){
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const g = cv.getContext('2d');
+  const grd = g.createRadialGradient(64,64,0,64,64,64);
+  grd.addColorStop(0,'rgba(255,255,255,1)'); grd.addColorStop(0.4,'rgba(255,255,255,0.45)'); grd.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle = grd; g.fillRect(0,0,128,128);
+  return new THREE.CanvasTexture(cv);
+}
+const softTex = makeSoftTexture();
+const smokes = [];
+for(let i=0;i<14;i++){
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:softTex, transparent:true, opacity:0, depthWrite:false, color:0xc8ced8 }));
+  s.visible = false; s.userData = {}; scene.add(s); smokes.push(s);
+}
+let smokeTimer = 0;
+function emitSmoke(){
+  const s = smokes.find(x=>!x.visible); if(!s) return;
+  s.visible = true; s.position.set((Math.random()-0.5)*0.18, 2.45, (Math.random()-0.5)*0.18);
+  s.userData = { life:1, vy:0.005+Math.random()*0.004, vx:(Math.random()-0.5)*0.0025, scale:0.22+Math.random()*0.22, rot:(Math.random()-0.5)*0.02 };
+  s.scale.setScalar(s.userData.scale);
+}
+function updateSmoke(dt){
+  smokeTimer += dt; if(smokeTimer > 260){ smokeTimer = 0; emitSmoke(); }
+  for(const s of smokes){ if(!s.visible) continue; const u = s.userData;
+    u.life -= 0.006; if(u.life<=0){ s.visible=false; continue; }
+    s.position.y += u.vy; s.position.x += u.vx; u.scale += 0.005; s.scale.setScalar(u.scale);
+    s.material.rotation += u.rot; s.material.opacity = Math.sin(u.life*Math.PI)*0.28; }
+}
+
+// ---------- 衝撃波 ----------
+const shock = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 48),
+  new THREE.MeshBasicMaterial({ color:0xffe1b0, transparent:true, opacity:0, side:THREE.DoubleSide, depthWrite:false }));
+shock.position.set(0, 2.8, 0); shock.visible = false; scene.add(shock);
+let shockLife = 0;
+function fireShock(){ shock.visible = true; shock.scale.setScalar(1); shock.material.opacity = 0.9; shockLife = 1; }
+function updateShock(){
+  if(!shock.visible) return;
+  shock.lookAt(camera.position);
+  shockLife -= 0.045; const s = 1 + (1-shockLife)*5;
+  shock.scale.setScalar(s); shock.material.opacity = Math.max(0, shockLife*0.9);
+  if(shockLife<=0) shock.visible = false;
+}
+
+// ---------- shake / flash / haptics ----------
+let shake = 0;
+function addShake(v){ shake = Math.min(1, shake + v); }
+const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let _hapLabel = null;
+function _ensureHaptic(){
+  if(_hapLabel) return;
+  const label = document.createElement('label');
+  label.setAttribute('aria-hidden', 'true');
+  label.style.cssText = 'position:absolute;top:-9999px;left:-9999px;opacity:0;pointer-events:none';
+  const input = document.createElement('input'); input.type = 'checkbox'; input.setAttribute('switch', '');
+  label.appendChild(input); document.body.appendChild(label); _hapLabel = label;
+}
+let _lastHap = 0;
+function buzz(p){
+  if(!IS_IOS && navigator.vibrate){ try { navigator.vibrate(p); } catch(e){} return; }
+  if(IS_IOS){ const now = performance.now(); if(now - _lastHap < 40) return; _lastHap = now; _ensureHaptic(); try { _hapLabel.click(); } catch(e){} }
+}
+function flash(){ const f = el('flash'); f.style.transition='none'; f.style.opacity='0.5';
+  requestAnimationFrame(()=>{ f.style.transition='opacity .35s'; f.style.opacity='0'; }); }
+
+// ---------- Audio ----------
+let actx;
+function ensureAudio(){ if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)(); }
+function pop(){ ensureAudio(); const t=actx.currentTime;
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type='sine'; o.frequency.setValueAtTime(180,t); o.frequency.exponentialRampToValueAtTime(900,t+0.07);
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.5,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.25);
+  o.connect(g).connect(actx.destination); o.start(t); o.stop(t+0.3); }
+function snap(){ ensureAudio(); const t=actx.currentTime;
+  const buf=actx.createBuffer(1, actx.sampleRate*0.15, actx.sampleRate);
+  const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3);
+  const s=actx.createBufferSource(); s.buffer=buf;
+  const g=actx.createGain(); g.gain.value=0.5; s.connect(g).connect(actx.destination); s.start(t); }
+function tick(f){ ensureAudio(); const t=actx.currentTime;
+  const o=actx.createOscillator(), g=actx.createGain(); o.type='triangle'; o.frequency.value=f;
+  g.gain.setValueAtTime(0.08,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.05);
+  o.connect(g).connect(actx.destination); o.start(t); o.stop(t+0.06); }
+function thunk(){ ensureAudio(); const t=actx.currentTime;
+  const o=actx.createOscillator(), g=actx.createGain(); o.type='sine'; o.frequency.setValueAtTime(90,t);
+  g.gain.setValueAtTime(0.25,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.12);
+  o.connect(g).connect(actx.destination); o.start(t); o.stop(t+0.14); }
+
+// =========================================================
+//  道具
+// =========================================================
+const TOOLS = {
+  toothpick:{ power:0.34, thin:false, canSnap:true,  aimMul:0.95, pokeRisk:false },
+  needle:   { power:0.18, thin:true,  canSnap:false, aimMul:1.15, pokeRisk:true  },
+  hook:     { power:0.26, thin:true,  canSnap:false, aimMul:1.0,  lift:true      },
+  tweezers: { power:0.12, thin:false, canSnap:false, aimMul:1.0,  finisher:true  },
+};
+let tool = 'toothpick';
+let toolCoolUntil = 0;
+function selectTool(k){
+  tool = k;
+  for(const b of toolsEl.querySelectorAll('.tool')) b.classList.toggle('sel', b.dataset.tool===k);
+  for(const key in toolModels) toolModels[key].visible = (key===k);
+}
+
+// =========================================================
+//  Game state
+// =========================================================
+const STATE = { TITLE:'title', PLAYING:'playing', WON:'won', LOST:'lost' };
+let state = STATE.TITLE;
+let looseness = 0, crumble = 0, pries = 0;
+let combo = 0;
+let best = +(localStorage.getItem('nakaore_best')||0);
+hud.best.textContent = best;
+
+// ---------- レベル（成功で昇格・最大50） ----------
+const MAX_LEVEL = 50;
+let level = Math.min(MAX_LEVEL, Math.max(1, +(localStorage.getItem('nakaore_level')||1)));
+hud.level.textContent = level;
+const D = {};   // 現在レベルの難易度パラメータ
+function computeDifficulty(){
+  const t = Math.min(1, (level-1)/(MAX_LEVEL-1));   // 0..1
+  D.powerMul    = 1 - 0.45*t;        // こじり効率 1.0→0.55（手数が増える）
+  D.tightChance = 0.22 + 0.50*t;     // 細い隙間の出現率 0.22→0.72
+  D.aimMul      = 1 - 0.45*t;        // 命中域 1.0→0.55
+  D.crumbleMul  = 1 + 1.2*t;         // ミスの崩れ量 1.0→2.2
+  D.snapFactor  = 1.9 - 0.6*t;       // つまようじが折れる閾値 ×GOOD 1.9→1.3
+  D.sink        = t < 0.25 ? 0 : (t-0.25)*0.06;  // 放置で沈み戻る /秒（Lv13付近〜）
+}
+computeDifficulty();
+
+function updateMeters(){
+  el('loose').style.width = Math.round(looseness*100)+'%';
+  el('crumb').style.width = Math.round(crumble*100)+'%';
+}
+function updateFragVisual(){
+  frag.position.y = FRAG_BASE_Y + looseness*0.85;
+  frag.rotation.z = Math.cos(markerAngle)*looseness*0.28;
+  frag.rotation.x = Math.sin(markerAngle)*looseness*0.28;
+}
+
+function startGame(){
+  el('title').classList.add('hide');
+  el('cta').classList.remove('show');
+  el('result').classList.remove('show');
+  computeDifficulty(); hud.level.textContent = level;
+  looseness = 0; crumble = 0; pries = 0; flying = false; toolCoolUntil = 0;
+  frag.position.set(HOLE_X,FRAG_BASE_Y,0); frag.rotation.set(0,0,0);
+  setMarker(); updateFragVisual(); updateMeters();
+  frag.visible = false; marker.visible = false; toolPivot.visible = false; toolLever = 0;
+  capAngle = 0; capTarget = 1;   // 閉じた状態から開く演出
+  el('meter').classList.add('show');
+  toolsEl.classList.add('show');
+  el('hint').style.opacity = '0.9';
+  state = STATE.PLAYING;
+}
+
+// =========================================================
+//  Input — 「こじる」発掘
+// =========================================================
+function pointerXY(e){ const t = e.touches? e.touches[0] : e; return { x:t.clientX, y:t.clientY }; }
+function worldToScreen(v){ const t = v.clone().project(camera); return { x:(t.x*0.5+0.5)*innerWidth, y:(-t.y*0.5+0.5)*innerHeight }; }
+
+let digging = false, pryStart = null, pryCur = null, outDir = {x:0,y:-1};
+
+function onDown(e){
+  if(state !== STATE.PLAYING) return;
+  if(!marker.visible) return;                        // キャップが開く前は不可
+  if(performance.now() < toolCoolUntil) return;     // 道具が折れて使用不可中
+  const p = pointerXY(e);
+  const m = worldToScreen(markerWorld());
+  const cen = worldToScreen(new THREE.Vector3(0, RIM_Y, 0));
+  const aimR = Math.min(innerWidth, innerHeight) * 0.20 * TOOLS[tool].aimMul * D.aimMul;
+  if(Math.hypot(p.x-m.x, p.y-m.y) > aimR) return;   // 隙間外 → 視点回転に任せる
+  ensureAudio();
+  controls.enabled = false;
+  digging = true; pryStart = { x:p.x, y:p.y }; pryCur = { x:p.x, y:p.y };
+  let ox = m.x-cen.x, oy = m.y-cen.y; const ol = Math.hypot(ox,oy)||1; outDir = { x:ox/ol, y:oy/ol };
+  el('hint').style.opacity = '0';
+}
+function onMove(e){
+  if(!digging) return; pryCur = pointerXY(e);
+  const ex = pryCur.x-pryStart.x, ey = pryCur.y-pryStart.y;
+  const outward = ex*outDir.x + ey*outDir.y;
+  const GOOD = Math.min(innerWidth, innerHeight) * 0.18;
+  toolLever = Math.max(0, Math.min(1, outward / GOOD));   // ドラッグに追従して道具がてこ動作
+}
+
+function onUp(){
+  controls.enabled = true;
+  if(!digging){ return; }
+  digging = false;
+  if(!pryStart || !pryCur){ return; }
+
+  const ex = pryCur.x-pryStart.x, ey = pryCur.y-pryStart.y;
+  const outward = ex*outDir.x + ey*outDir.y;        // 外向き成分(px)
+  const GOOD = Math.min(innerWidth, innerHeight) * 0.18;
+  const T = TOOLS[tool];
+  pries++;
+
+  if(outward <= GOOD*0.15){
+    // こじれていない＝奥に突いた → 押し込み
+    crumble = Math.min(1, crumble + 0.05*D.crumbleMul);
+    looseness = Math.max(0, looseness - (T.pokeRisk ? 0.06 : 0.02));
+    thunk(); buzz(14);
+  } else if(T.canSnap && outward > GOOD*D.snapFactor){
+    // 力みすぎでつまようじが折れる
+    crumble = Math.min(1, crumble + 0.10*D.crumbleMul);
+    toolCoolUntil = performance.now() + 1100;
+    snap(); buzz(170); addShake(0.35);
+  } else {
+    const force = Math.min(1.2, outward / GOOD);
+    let gain = T.power * Math.min(1, force) * D.powerMul;
+    if(markerTight && !T.thin){ gain *= 0.15; crumble = Math.min(1, crumble + 0.06*D.crumbleMul); }  // 太い道具を細い隙間へ
+    if(T.lift && looseness > 0.55) gain *= 1.6;                                         // フックは浮いてから強い
+    if(T.finisher && looseness > 0.7) gain = Math.max(gain, 0.5*D.powerMul);            // ピンセットの仕上げ
+    looseness = Math.min(1, looseness + gain);
+    crumbs(markerWorld());
+    tick(170 + looseness*220);
+    buzz(Math.round(10 + gain*130));
+    addShake(0.1 + gain*0.5);
+    toolLever = 0.9;   // こじり切った瞬間の手元の跳ね
+  }
+
+  updateFragVisual(); setMarker(); updateMeters();
+  pryStart = pryCur = null;
+
+  if(looseness >= 1) winDig();
+  else if(crumble >= 1) failDig();
+}
+
+// =========================================================
+//  Outcomes
+// =========================================================
+let flying = false, flyV = 0;
+
+function winDig(){
+  state = STATE.WON;
+  burst(markerWorld().setY(2.7)); pop(); fireShock(); flash(); addShake(0.7); buzz([22,35,95]);
+  flying = true; flyV = 0.13;
+  marker.visible = false; toolPivot.visible = false;
+  el('meter').classList.remove('show'); toolsEl.classList.remove('show');
+
+  const cleared = level;
+  const cleanliness = Math.round((1 - crumble) * 100);
+  combo++;
+  const gained = Math.round((cleanliness + Math.max(0,(12-pries))*5 + combo*10) * (1 + (cleared-1)*0.06));
+  best = Math.max(best, gained); localStorage.setItem('nakaore_best', best);
+
+  let rank, sub, color='var(--good)', cta='次のレベルへ';
+  if(cleared >= MAX_LEVEL){
+    rank='ALL CLEAR!!'; sub='全50レベル制覇！神の手'; color='var(--accent)'; cta='もう一回';
+  } else {
+    if(cleanliness >= 90 && pries <= 6){ rank='PERFECT!!'; sub='達人のほじり'; color='var(--accent)'; }
+    else if(cleanliness >= 70){ rank='CLEAN!'; sub='キレイに救出'; }
+    else { rank='救出成功'; sub='ボロボロだけど回収'; color='#facc15'; }
+    level = Math.min(MAX_LEVEL, level+1);
+    localStorage.setItem('nakaore_level', level);
+  }
+  hud.combo.textContent = combo; hud.best.textContent = best; hud.level.textContent = level;
+  showResult(rank, sub, `LV${cleared} クリア　+${gained}（キレイさ ${cleanliness}% / ${pries}手 / ×${combo}）`, color, cta);
+}
+
+function failDig(){
+  state = STATE.LOST;
+  snap(); addShake(0.5); buzz(180);
+  for(let i=0;i<3;i++) crumbs(markerWorld().setY(2.4));
+  frag.visible = false; marker.visible = false; toolPivot.visible = false;
+  el('meter').classList.remove('show'); toolsEl.classList.remove('show');
+  combo = 0; hud.combo.textContent = 0;
+  showResult('崩れた…', 'ほじりすぎ・力みすぎ', `LV${level} 失敗・再挑戦　COMBO リセット`, 'var(--bad)', 'もう一回');
+}
+
+function showResult(title, sub, score, color, cta){
+  el('resultTitle').textContent = title; el('resultTitle').style.color = color;
+  el('resultSub').textContent = sub; el('resultScore').textContent = score;
+  el('result').classList.add('show');
+  const b = el('cta'); b.textContent = cta; b.classList.add('show');
+}
+
+// =========================================================
+//  Loop
+// =========================================================
+let prevT = performance.now();
+function animate(){
+  requestAnimationFrame(animate);
+  const now = performance.now(); const dt = now - prevT; prevT = now;
+
+  holder.rotation.z *= 0.85;
+
+  // キャップ開閉アニメ（横へスライド）
+  capAngle += (capTarget - capAngle) * 0.18;
+  capPivot.position.x = HOLE_X + CAP_SLIDE_X * capAngle;
+  capPivot.position.y = 2.46 + CAP_RISE_Y * capAngle;
+  // 開ききったら中身（中折れ・マーカー・道具）を露出
+  if(state===STATE.PLAYING && capTarget===1 && capAngle>0.7 && !marker.visible){
+    frag.visible = true; marker.visible = true; toolPivot.visible = true; updateToolTransform();
+  }
+
+  // 救出されたフラグメントの飛翔
+  if(flying){
+    flyV -= 0.006; frag.position.y += flyV*4;
+    frag.rotation.y += 0.2; frag.rotation.x += 0.1;
+    if(frag.position.y > 6){ flying=false; frag.visible=false; }
+  }
+
+  // 道具：隙間へ追従＋てこ動作（離すと戻る）
+  if(toolPivot.visible){ updateToolTransform(); if(!digging) toolLever *= 0.86; }
+
+  // マーカー：位置・色・脈動
+  if(marker.visible){
+    const w = markerWorld(); marker.position.copy(w);
+    marker.material.color.setHex(markerTight ? 0x5a8cff : 0xff6b35);
+    const s = 1 + Math.sin(now*0.008)*0.18; marker.scale.setScalar(s);
+    marker.material.opacity = 0.7 + Math.sin(now*0.008)*0.25;
+  }
+
+  // 沈み戻り（高レベル）＋待機中の微かな揺れで誘う
+  if(state===STATE.PLAYING && !digging){
+    if(D.sink > 0 && looseness > 0){ looseness = Math.max(0, looseness - D.sink*dt/1000); updateMeters(); }
+    frag.position.y = FRAG_BASE_Y + looseness*0.85 + Math.sin(now*0.003)*0.012;
+  }
+
+  // 道具クールダウンの見た目
+  const tpBtn = toolsEl.querySelector('[data-tool="toothpick"]');
+  if(tpBtn) tpBtn.classList.toggle('cool', now < toolCoolUntil && tool==='toothpick');
+
+  led.material.emissive.setHex(state===STATE.LOST ? 0xf43f5e : 0x4ade80);
+  updatePts(spark, 0.008, 0.012);
+  updatePts(crumb, 0.006, 0.02);
+  updateSmoke(dt);
+  updateShock();
+
+  controls.update();
+  if(shake > 0.001){
+    shake *= 0.86;
+    camera.position.x += (Math.random()-0.5)*shake*0.5;
+    camera.position.y += (Math.random()-0.5)*shake*0.5;
+  }
+  renderer.render(scene, camera);
+}
+animate();
+
+// =========================================================
+//  Wiring
+// =========================================================
+el('startBtn').addEventListener('click', ()=>{ ensureAudio(); startGame(); });
+el('cta').addEventListener('click', ()=>{ ensureAudio(); startGame(); });
+
+for(const b of toolsEl.querySelectorAll('.tool')){
+  b.addEventListener('click', ()=>{ ensureAudio(); selectTool(b.dataset.tool); });
+}
+selectTool('toothpick');
+
+const cdom = renderer.domElement;
+cdom.addEventListener('pointerdown', onDown);
+cdom.addEventListener('pointermove', onMove);
+window.addEventListener('pointerup', onUp);
+window.addEventListener('pointercancel', onUp);
+
+// 縦横比に応じた画角・距離の自動調整
+const OBJ_H = 4.6;
+function frameCamera(){
+  const aspect = innerWidth / innerHeight;
+  camera.aspect = aspect;
+  const fill = aspect < 0.65 ? 0.52 : (aspect < 1.3 ? 0.62 : 0.72);
+  const visH = OBJ_H / fill;
+  const dist = (visH/2) / Math.tan((camera.fov*Math.PI/180)/2);
+  const dir = camera.position.clone().sub(controls.target);
+  if(dir.lengthSq() < 1e-4) dir.set(0,1,1);
+  dir.setLength(THREE.MathUtils.clamp(dist, controls.minDistance, controls.maxDistance));
+  camera.position.copy(controls.target).add(dir);
+  camera.updateProjectionMatrix();
+  controls.update();
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+}
+frameCamera();
+let resizeRAF = 0;
+addEventListener('resize', ()=>{ cancelAnimationFrame(resizeRAF); resizeRAF = requestAnimationFrame(frameCamera); });
+addEventListener('orientationchange', ()=> setTimeout(frameCamera, 200));
+</script>
+</body>
+</html>
