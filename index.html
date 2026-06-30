@@ -124,6 +124,13 @@
 
   #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 6; }
 
+  /* ---- 光る隙間の画面オーバーレイ（見やすい目印） ---- */
+  #gapHud { position: fixed; left: 0; top: 0; transform: translate(-50%,-50%); pointer-events: none; z-index: 4; opacity: 0; transition: opacity .2s; color: var(--accent); }
+  #gapHud.show { opacity: 1; }
+  #gapHud .ring { width: 60px; height: 60px; border-radius: 50%; border: 4px solid currentColor; box-shadow: 0 0 18px currentColor, inset 0 0 12px currentColor; animation: gapPulse 1s ease-in-out infinite; }
+  #gapHud .lbl { text-align: center; margin-top: 4px; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: currentColor; text-shadow: 0 0 6px rgba(0,0,0,.6); }
+  @keyframes gapPulse { 0%,100% { transform: scale(0.8); opacity:.65;} 50% { transform: scale(1.2); opacity:1;} }
+
   @media (max-height: 480px) {
     #meter { bottom: calc(70px + env(safe-area-inset-bottom)); }
     #hint { bottom: calc(118px + env(safe-area-inset-bottom)); }
@@ -139,6 +146,7 @@
 <body>
 <div id="app"></div>
 <div id="flash"></div>
+<div id="gapHud"><div class="ring"></div><div class="lbl">ここをこじる</div></div>
 <div id="hud">
   <div id="topbar">
     <div style="display:flex;gap:8px">
@@ -788,6 +796,12 @@ function animate(){
     marker.material.color.setHex(markerTight ? 0x5a8cff : 0xff6b35);
     const s = 1 + Math.sin(now*0.008)*0.18; marker.scale.setScalar(s);
     marker.material.opacity = 0.7 + Math.sin(now*0.008)*0.25;
+    const sc = worldToScreen(w); const gh = el('gapHud');
+    gh.style.left = sc.x + 'px'; gh.style.top = sc.y + 'px';
+    gh.style.color = markerTight ? '#5a8cff' : '#ff6b35';
+    gh.classList.add('show');
+  } else {
+    el('gapHud').classList.remove('show');
   }
 
   // 沈み戻り（高レベル）＋待機中の微かな揺れで誘う
