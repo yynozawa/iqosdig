@@ -143,6 +143,16 @@
   #bigFx.show { animation: bigPop 1.2s cubic-bezier(.2,1.4,.3,1) forwards; }
   @keyframes bigPop { 0%{opacity:0; transform:translate(-50%,-50%) scale(.4);} 18%{opacity:1; transform:translate(-50%,-50%) scale(1.18);} 72%{opacity:1; transform:translate(-50%,-50%) scale(1);} 100%{opacity:0; transform:translate(-50%,-60%) scale(1);} }
 
+  /* ---- ホワイトモード（背景トグル） ---- */
+  #bgToggle { position: fixed; top: calc(env(safe-area-inset-top, 16px) + 4px); left: 50%; transform: translateX(-50%); z-index: 8; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: var(--text); font-size: 18px; line-height: 1; cursor: pointer; backdrop-filter: blur(8px); }
+  #bgToggle:active { transform: translateX(-50%) scale(.92); }
+  body.light { --text: #1c2230; background: radial-gradient(ellipse at 50% 30%, #f7f8fc, #d9deea); }
+  body.light .pill { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); }
+  body.light #bgToggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); }
+  body.light .mbar { background: rgba(0,0,0,0.08); border-color: rgba(0,0,0,0.12); }
+  body.light .tool { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.14); }
+  body.light #stickType { background: rgba(255,255,255,0.8); border-color: rgba(0,0,0,0.12); }
+
   @media (max-height: 480px) {
     #meter { bottom: calc(70px + env(safe-area-inset-bottom)); }
     #hint { bottom: calc(118px + env(safe-area-inset-bottom)); }
@@ -158,6 +168,7 @@
 <body>
 <div id="app"></div>
 <div id="flash"></div>
+<button id="bgToggle" aria-label="背景の明暗を切り替え">☀</button>
 <div id="gapHud"><div class="ring"></div><div class="lbl">ここをこじる</div></div>
 <div id="chain"></div>
 <div id="pryFx"></div>
@@ -928,6 +939,17 @@ for(const b of toolsEl.querySelectorAll('.tool')){
   b.addEventListener('click', ()=>{ ensureAudio(); selectTool(b.dataset.tool); });
 }
 selectTool('toothpick');
+
+// ---------- 背景テーマ（ダーク / ホワイト）トグル ----------
+function setTheme(light){
+  document.body.classList.toggle('light', light);
+  scene.fog.color.setHex(light ? 0xe9ecf3 : 0x0a0c14);
+  floor.material.color.setHex(light ? 0xdde2ec : 0x14161f);
+  const b = el('bgToggle'); if(b) b.textContent = light ? '🌙' : '☀';
+  localStorage.setItem('nakaore_theme', light ? 'light' : 'dark');
+}
+setTheme(localStorage.getItem('nakaore_theme') === 'light');
+el('bgToggle').addEventListener('click', ()=> setTheme(!document.body.classList.contains('light')));
 
 const cdom = renderer.domElement;
 cdom.addEventListener('pointerdown', onDown);
