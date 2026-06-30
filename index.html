@@ -139,6 +139,9 @@
   @keyframes pryPop { 0%{opacity:0; transform:translate(-50%,-50%) scale(.5);} 25%{opacity:1; transform:translate(-50%,-90%) scale(1.1);} 100%{opacity:0; transform:translate(-50%,-170%) scale(1);} }
   #stickType { position: fixed; left: 50%; top: 118px; transform: translateX(-50%); background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.18); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 5; }
   #stickType.show { opacity: 1; }
+  #bigFx { position: fixed; left:50%; top:38%; transform: translate(-50%,-50%) scale(.4); font-size: clamp(28px,9vw,52px); font-weight:900; color:#ffd24a; text-shadow:0 0 18px rgba(255,180,40,.85), 0 3px 10px rgba(0,0,0,.5); opacity:0; pointer-events:none; z-index:7; letter-spacing:1px; white-space:nowrap; }
+  #bigFx.show { animation: bigPop 1.2s cubic-bezier(.2,1.4,.3,1) forwards; }
+  @keyframes bigPop { 0%{opacity:0; transform:translate(-50%,-50%) scale(.4);} 18%{opacity:1; transform:translate(-50%,-50%) scale(1.18);} 72%{opacity:1; transform:translate(-50%,-50%) scale(1);} 100%{opacity:0; transform:translate(-50%,-60%) scale(1);} }
 
   @media (max-height: 480px) {
     #meter { bottom: calc(70px + env(safe-area-inset-bottom)); }
@@ -159,6 +162,7 @@
 <div id="chain"></div>
 <div id="pryFx"></div>
 <div id="stickType"></div>
+<div id="bigFx"></div>
 <div id="hud">
   <div id="topbar">
     <div style="display:flex;gap:8px">
@@ -580,6 +584,10 @@ function thunk(){ ensureAudio(); const t=actx.currentTime;
   const o=actx.createOscillator(), g=actx.createGain(); o.type='sine'; o.frequency.setValueAtTime(90,t);
   g.gain.setValueAtTime(0.25,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.12);
   o.connect(g).connect(actx.destination); o.start(t); o.stop(t+0.14); }
+function chord(){ ensureAudio(); const t=actx.currentTime;
+  [523,659,784,1047].forEach((f,i)=>{ const o=actx.createOscillator(), g=actx.createGain(); o.type='triangle'; o.frequency.value=f;
+    const tt=t+i*0.06; g.gain.setValueAtTime(0.0001,tt); g.gain.exponentialRampToValueAtTime(0.32,tt+0.02); g.gain.exponentialRampToValueAtTime(0.0001,tt+0.32);
+    o.connect(g).connect(actx.destination); o.start(tt); o.stop(tt+0.34); }); }
 
 // =========================================================
 //  道具
@@ -778,17 +786,34 @@ function onUp(){
 // =========================================================
 let flying = false, flyV = 0;
 
+// 抜き演出（big=3連続以上でマシマシ）
+function extractFx(big){
+  burst(markerWorld().setY(2.7)); pop(); fireShock(); flash();
+  if(!big){ addShake(0.7); buzz([22,35,95]); return; }
+  addShake(1.1); buzz([20,30,40,30,140]);
+  for(let i=0;i<2;i++) burst(markerWorld().setY(2.9 + Math.random()*0.5));
+  setTimeout(()=>{ fireShock(); flash(); burst(markerWorld().setY(3.0)); }, 130);
+  setTimeout(()=>{ fireShock(); chord(); burst(markerWorld().setY(3.2)); addShake(0.5); }, 270);
+  showBigFx();
+}
+function showBigFx(){
+  const e = el('bigFx'); e.textContent = combo + '連続！マシマシ';
+  e.classList.remove('show'); void e.offsetWidth; e.classList.add('show');
+}
+
 function winDig(){
   state = STATE.WON;
-  burst(markerWorld().setY(2.7)); pop(); fireShock(); flash(); addShake(0.7); buzz([22,35,95]);
   flying = true; flyV = 0.13;
   marker.visible = false; toolPivot.visible = false;
   el('meter').classList.remove('show'); toolsEl.classList.remove('show');
   streak = 0; el('chain').classList.remove('show');
 
+  combo++;
+  const big = combo >= 3;     // 3連続成功で抜き演出マシマシ
+  extractFx(big);
+
   const cleared = level;
   const cleanliness = Math.round((1 - crumble) * 100);
-  combo++;
   const gained = Math.round((cleanliness + Math.max(0,(12-pries))*5 + combo*10) * (1 + (cleared-1)*0.06));
   best = Math.max(best, gained); localStorage.setItem('nakaore_best', best);
 
