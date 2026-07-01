@@ -73,6 +73,7 @@
   }
   .tool svg { width: 24px; height: 24px; opacity: .85; }
   .tool .tname { font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .tool .ease { font-size: 8px; letter-spacing: 1px; color: var(--accent); opacity: .85; margin-top: 1px; }
   .tool.sel { border-color: var(--accent); background: rgba(255,107,53,0.16); }
   .tool.sel svg { opacity: 1; }
   .tool.cool { opacity: .35; filter: grayscale(1); }
@@ -604,11 +605,12 @@ function chord(){ ensureAudio(); const t=actx.currentTime;
 //  道具
 // =========================================================
 const TOOLS = {
-  toothpick:{ power:0.34, thin:false, canSnap:true,  aimMul:0.95, pokeRisk:false },
-  needle:   { power:0.18, thin:true,  canSnap:false, aimMul:1.15, pokeRisk:true  },
-  hook:     { power:0.26, thin:true,  canSnap:false, aimMul:1.0,  lift:true      },
-  tweezers: { power:0.12, thin:false, canSnap:false, aimMul:1.0,  finisher:true  },
+  toothpick:{ label:'つまようじ', ease:5, power:0.34, thin:false, canSnap:true,  aimMul:0.95, pokeRisk:false },
+  needle:   { label:'針・ピン',   ease:2, power:0.16, thin:true,  canSnap:false, aimMul:1.15, pokeRisk:true  },
+  hook:     { label:'フック',     ease:3, power:0.24, thin:true,  canSnap:false, aimMul:1.0,  lift:true      },
+  tweezers: { label:'ピンセット', ease:1, power:0.11, thin:false, canSnap:false, aimMul:1.0,  finisher:true  },
 };
+let availableTools = Object.keys(TOOLS);   // レベルごとの使用可能アイテム
 
 // ---------- スティックの種類（毎回ランダム・高レベルほど難種が増える） ----------
 const STICK_TYPES = [
@@ -630,6 +632,21 @@ function selectTool(k){
   tool = k;
   for(const b of toolsEl.querySelectorAll('.tool')) b.classList.toggle('sel', b.dataset.tool===k);
   for(const key in toolModels) toolModels[key].visible = (key===k);
+}
+// レベルごとに使用アイテムをランダム編成（2〜3個・必ず細い道具を1つ含む）
+function pickLoadout(){
+  const keys = Object.keys(TOOLS);
+  const thinKeys = keys.filter(k=>TOOLS[k].thin);
+  const n = 2 + Math.floor(Math.random()*2);
+  const chosen = new Set();
+  chosen.add(thinKeys[Math.floor(Math.random()*thinKeys.length)]);
+  while(chosen.size < n) chosen.add(keys[Math.floor(Math.random()*keys.length)]);
+  availableTools = keys.filter(k=>chosen.has(k));
+}
+function applyLoadout(){
+  for(const b of toolsEl.querySelectorAll('.tool'))
+    b.style.display = availableTools.includes(b.dataset.tool) ? '' : 'none';
+  selectTool(availableTools[0]);
 }
 
 // =========================================================
@@ -694,6 +711,7 @@ function startGame(){
   el('cta').classList.remove('show');
   el('result').classList.remove('show');
   computeDifficulty(); hud.level.textContent = level;
+  pickLoadout(); applyLoadout();
   looseness = 0; crumble = 0; pries = 0; flying = false; toolCoolUntil = 0;
   streak = 0; pickStickType(); tobaccoMat.color.setHex(stickType.color);
   el('chain').classList.remove('show'); showTypeToast(stickType.name);
@@ -937,6 +955,10 @@ el('cta').addEventListener('click', ()=>{ ensureAudio(); startGame(); });
 
 for(const b of toolsEl.querySelectorAll('.tool')){
   b.addEventListener('click', ()=>{ ensureAudio(); selectTool(b.dataset.tool); });
+  const e = TOOLS[b.dataset.tool].ease;
+  const d = document.createElement('div'); d.className = 'ease';
+  d.textContent = '●'.repeat(e) + '○'.repeat(5-e);   // ほじりやすさ
+  b.appendChild(d);
 }
 selectTool('toothpick');
 
