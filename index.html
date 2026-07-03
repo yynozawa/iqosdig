@@ -152,6 +152,17 @@
   /* ---- ホワイトモード（背景トグル） ---- */
   #bgToggle { position: fixed; top: calc(env(safe-area-inset-top, 16px) + 4px); left: 50%; transform: translateX(-50%); z-index: 8; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: var(--text); font-size: 18px; line-height: 1; cursor: pointer; backdrop-filter: blur(8px); }
   #bgToggle:active { transform: translateX(-50%) scale(.92); }
+  #helpBtn { position: fixed; top: calc(env(safe-area-inset-top, 16px) + 4px); left: 16px; z-index: 8; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: var(--text); font-size: 16px; font-weight:800; cursor: pointer; backdrop-filter: blur(8px); }
+  body.light #helpBtn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); }
+  #howto { margin-top:2px; background:none; border:none; color:var(--text); opacity:.7; font-size:14px; text-decoration:underline; cursor:pointer; }
+  #help { position: fixed; inset:0; z-index:20; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); padding:20px; }
+  #help.show { display:flex; }
+  #help .helpCard { background:#1b1e2a; color:#f4f6fb; border:1px solid rgba(255,255,255,0.14); border-radius:16px; max-width:440px; width:100%; max-height:82vh; overflow:auto; padding:20px 22px; text-align:left; }
+  #help h2 { font-size:22px; margin-bottom:12px; }
+  #help ol { margin:0 0 16px; padding-left:1.2em; }
+  #help li { font-size:14px; line-height:1.85; margin-bottom:10px; }
+  #help b { color:#ffd24a; font-weight:700; }
+  #helpClose { width:100%; background:var(--accent); color:#1a1018; border:none; font-size:16px; font-weight:800; padding:12px; border-radius:999px; cursor:pointer; }
   body.light { --text: #1c2230; background: radial-gradient(ellipse at 50% 30%, #f7f8fc, #d9deea); }
   body.light .pill { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); }
   body.light #bgToggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); }
@@ -175,6 +186,7 @@
 <div id="app"></div>
 <div id="flash"></div>
 <button id="bgToggle" aria-label="背景の明暗を切り替え">☀</button>
+<button id="helpBtn" aria-label="遊び方">?</button>
 <div id="gapHud"><div class="ring"></div><div class="lbl">ここをこじる</div></div>
 <div id="chain"></div>
 <div id="pryFx"></div>
@@ -219,6 +231,22 @@
   <p>IQOSのチャンバーに残った<b>中折れスティック</b>を、道具でほじって救出せよ。<br><b>光る隙間</b>に道具を差し込み、外側へこじって少しずつ浮かせる。<br>道具ごとに手応えが違う。雑にやると…崩れる。</p>
   <div id="colors"></div>
   <button id="startBtn">掘る</button>
+  <button id="howto">遊び方をみる</button>
+</div>
+
+<div id="help">
+  <div class="helpCard">
+    <h2>遊び方</h2>
+    <ol>
+      <li><b>目的</b>：チャンバーに折れて詰まったスティックを道具でこじり出す。<b>「浮き具合」を100%</b>にすれば救出成功。</li>
+      <li><b>こじり方</b>：<b>光るリング（＝すき間）を狙って、外側へスッと弾く（フリック）</b>。これで少しずつ浮きます。</li>
+      <li><b>大きく浮かせるコツ</b>：リングの<b>中心をピタッ</b>と押して、<b>ちょうどいい強さ</b>で外へ弾くと<b>PERFECT</b>（浮きが大きい）。<br>※<b>タイミングは関係ありません</b>。リングの脈打ちはただの目印です。あわてず“中心＋外へ弾く”。</li>
+      <li><b>道具の使い分け</b>：<b>青いリング＝細いすき間</b>で、細い道具（針・フック）向き。太い<b>つまようじ</b>は普通のすき間で最強。ボタンの<b>●の数＝ほじりやすさ</b>。使える道具はレベルごとに変わります。</li>
+      <li><b>連続で決めると RUSH ×倍率</b>で浮きアップ。<b>突くだけ・力みすぎ・太い道具で細いすき間</b>は<b>「崩れ」</b>が増え、満タンで失敗。</li>
+      <li><b>視点</b>：すき間以外をドラッグで回転／ピンチでズーム。</li>
+    </ol>
+    <button id="helpClose">とじる</button>
+  </div>
 </div>
 
 <script type="importmap">
@@ -995,6 +1023,10 @@ animate();
 //  Wiring
 // =========================================================
 el('startBtn').addEventListener('click', ()=>{ ensureAudio(); startGame(); });
+el('helpBtn').addEventListener('click', ()=> el('help').classList.add('show'));
+el('howto').addEventListener('click', ()=> el('help').classList.add('show'));
+el('helpClose').addEventListener('click', ()=> el('help').classList.remove('show'));
+el('help').addEventListener('click', (e)=>{ if(e.target === el('help')) el('help').classList.remove('show'); });
 el('cta').addEventListener('click', ()=>{ ensureAudio(); startGame(); });
 
 for(const b of toolsEl.querySelectorAll('.tool')){
