@@ -133,7 +133,7 @@
   /* ---- 光る隙間の画面オーバーレイ（見やすい目印） ---- */
   #gapHud { position: fixed; left: 0; top: 0; transform: translate(-50%,-50%); pointer-events: none; z-index: 4; opacity: 0; transition: opacity .2s; color: var(--accent); }
   #gapHud.show { opacity: 1; }
-  #gapHud .ring { width: 60px; height: 60px; border-radius: 50%; border: 4px solid currentColor; box-shadow: 0 0 18px currentColor, inset 0 0 12px currentColor; animation: gapPulse 1s ease-in-out infinite; }
+  #gapHud .ring { width: 60px; height: 60px; border-radius: 50%; border: 4px solid currentColor; box-shadow: 0 0 18px currentColor, inset 0 0 12px currentColor; }
   #gapHud .lbl { text-align: center; margin-top: 4px; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: currentColor; text-shadow: 0 0 6px rgba(0,0,0,.6); }
   @keyframes gapPulse { 0%,100% { transform: scale(1); opacity:.72;} 50% { transform: scale(1.06); opacity:1;} }
   #gapHud .ring { position: relative; }
