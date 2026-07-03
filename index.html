@@ -705,9 +705,9 @@ const D = {};   // 現在レベルの難易度パラメータ
 function computeDifficulty(){
   const t = Math.min(1, (level-1)/(MAX_LEVEL-1));   // 0..1
   D.powerMul    = 1 - 0.45*t;        // こじり効率 1.0→0.55（手数が増える）
-  D.tightChance = 0.22 + 0.50*t;     // 細い隙間の出現率 0.22→0.72
+  D.tightChance = 0.18 + 0.32*t;     // 細い隙間の出現率 0.18→0.50（太い道具でも戦えるよう抑制）
   D.aimMul      = 1 - 0.45*t;        // 命中域 1.0→0.55
-  D.crumbleMul  = 1 + 1.2*t;         // ミスの崩れ量 1.0→2.2
+  D.crumbleMul  = 1 + 0.7*t;         // ミスの崩れ量 1.0→1.7（全体的に緩和）
   D.snapFactor  = 1.9 - 0.6*t;       // つまようじが折れる閾値 ×GOOD 1.9→1.3
   D.sink        = t < 0.25 ? 0 : (t-0.25)*0.06;  // 放置で沈み戻る /秒（Lv13付近〜）
 }
@@ -812,13 +812,13 @@ function onUp(e){
 
   if(outward <= GOOD*0.08){
     // こじれていない＝奥に突いた → 押し込み
-    crumble = Math.min(1, crumble + 0.05*D.crumbleMul*stickType.crumbleMul);
+    crumble = Math.min(1, crumble + 0.035*D.crumbleMul*stickType.crumbleMul);
     looseness = Math.max(0, looseness - (T.pokeRisk ? 0.06 : 0.02));
     streak = 0; updateChainUI(); thunk(); buzz(14);
   } else if(T.canSnap && outward > GOOD*D.snapFactor){
     // 力みすぎでつまようじが折れる
-    crumble = Math.min(1, crumble + 0.10*D.crumbleMul*stickType.crumbleMul);
-    toolCoolUntil = performance.now() + 1100;
+    crumble = Math.min(1, crumble + 0.06*D.crumbleMul*stickType.crumbleMul);
+    toolCoolUntil = performance.now() + 800;
     streak = 0; updateChainUI(); snap(); buzz(170); addShake(0.35);
   } else {
     const force = Math.min(1.3, outward / GOOD);
@@ -832,7 +832,7 @@ function onUp(e){
     else if(aimRatio < 0.8 && force >= 0.45){ quality='GOOD'; qMul=1.25; }
     streak++;
     let gain = T.power * Math.min(1, force) * D.powerMul * stickType.gainMul * qMul * chainMul();
-    if(markerTight && !T.thin){ gain *= 0.15; crumble = Math.min(1, crumble + 0.06*D.crumbleMul*stickType.crumbleMul); streak = Math.max(0, streak-2); }
+    if(markerTight && !T.thin){ gain *= 0.4; crumble = Math.min(1, crumble + 0.03*D.crumbleMul*stickType.crumbleMul); streak = Math.max(0, streak-1); }
     if(T.lift && looseness > 0.55) gain *= 1.6;                                         // フックは浮いてから強い
     if(T.finisher && looseness > 0.7) gain = Math.max(gain, 0.5*D.powerMul);            // ピンセットの仕上げ
     looseness = Math.min(1, looseness + gain);
