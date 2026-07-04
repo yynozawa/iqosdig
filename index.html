@@ -133,14 +133,7 @@
   /* ---- 光る隙間の画面オーバーレイ（見やすい目印） ---- */
   #gapHud { position: fixed; left: 0; top: 0; transform: translate(-50%,-50%); pointer-events: none; z-index: 4; opacity: 0; transition: opacity .2s; color: var(--accent); }
   #gapHud.show { opacity: 1; }
-  #gapHud .ring { width: 82px; height: 82px; border-radius: 50%; border: 3px dashed currentColor; box-shadow: 0 0 16px currentColor; }
-  #chargeGauge { position:fixed; right:18px; top:50%; transform:translateY(-50%); width:26px; height:200px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); border-radius:14px; overflow:hidden; z-index:5; opacity:0; transition:opacity .2s; }
-  #chargeGauge.show { opacity:1; }
-  #chargeGauge .sweet { position:absolute; left:0; right:0; bottom:72%; height:28%; background:rgba(74,222,128,0.35); border-top:2px solid #4ade80; border-bottom:2px solid #4ade80; }
-  #chargeGauge .cfill { position:absolute; left:0; right:0; bottom:0; height:0%; background:linear-gradient(#9fe8ff,#5a8cff); transition:height .04s linear; }
-  #chargeGauge.over .cfill { background:#f43f5e; }
-  #chargeGauge .glbl { position:absolute; bottom:-22px; left:50%; transform:translateX(-50%); white-space:nowrap; font-size:11px; font-weight:700; opacity:.8; }
-  body.light #chargeGauge { background:rgba(0,0,0,0.06); border-color:rgba(0,0,0,0.15); }
+  #gapHud .ring { width: 60px; height: 60px; border-radius: 50%; border: 4px solid currentColor; box-shadow: 0 0 18px currentColor, inset 0 0 12px currentColor; }
   #gapHud .lbl { text-align: center; margin-top: 4px; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: currentColor; text-shadow: 0 0 6px rgba(0,0,0,.6); }
   @keyframes gapPulse { 0%,100% { transform: scale(1); opacity:.72;} 50% { transform: scale(1.06); opacity:1;} }
   #gapHud .ring { position: relative; }
@@ -194,8 +187,7 @@
 <div id="flash"></div>
 <button id="bgToggle" aria-label="背景の明暗を切り替え">☀</button>
 <button id="helpBtn" aria-label="遊び方">?</button>
-<div id="gapHud"><div class="ring"></div><div class="lbl">長押し→スイートで離す</div></div>
-<div id="chargeGauge"><div class="sweet"></div><div class="cfill"></div><div class="glbl">ためて離す</div></div>
+<div id="gapHud"><div class="ring"></div><div class="lbl">ここをこじる</div></div>
 <div id="chain"></div>
 <div id="pryFx"></div>
 <div id="stickType"></div>
@@ -247,8 +239,8 @@
     <h2>遊び方</h2>
     <ol>
       <li><b>目的</b>：チャンバーに折れて詰まったスティックを道具でこじり出す。<b>「浮き具合」を100%</b>にすれば救出成功。</li>
-      <li><b>こじり方</b>：穴を<b>長押しして右のゲージをためる</b>→<b>緑のゾーンで指を離す</b>と大きく浮く（PERFECT）。</li>
-      <li><b>コツ</b>：緑より早く離すと小さめ、<b>ためすぎ（赤）は「崩れ」</b>。連続でPERFECTを決めると<b>RUSH倍率</b>アップ。</li>
+      <li><b>こじり方</b>：<b>光るリング（＝すき間）を狙って、外側へスッと弾く（フリック）</b>。これで少しずつ浮きます。</li>
+      <li><b>大きく浮かせるコツ</b>：リングの<b>中心をピタッ</b>と押して、<b>ちょうどいい強さ</b>で外へ弾くと<b>PERFECT</b>（浮きが大きい）。<br>※<b>タイミングは関係ありません</b>。リングの脈打ちはただの目印です。あわてず“中心＋外へ弾く”。</li>
       <li><b>道具の使い分け</b>：<b>青いリング＝細いすき間</b>で、細い道具（針・フック）向き。太い<b>つまようじ</b>は普通のすき間で最強。ボタンの<b>●の数＝ほじりやすさ</b>。使える道具はレベルごとに変わります。</li>
       <li><b>連続で決めると RUSH ×倍率</b>で浮きアップ。<b>突くだけ・力みすぎ・太い道具で細いすき間</b>は<b>「崩れ」</b>が増え、満タンで失敗。</li>
       <li><b>視点</b>：すき間以外をドラッグで回転／ピンチでズーム。</li>
@@ -775,8 +767,8 @@ function updateChainUI(){
 }
 function showPryFx(q, sc){
   const f = el('pryFx');
-  f.textContent = q==='PERFECT' ? 'PERFECT!' : q==='GOOD' ? 'GOOD' : q==='OVER' ? 'ためすぎ!' : 'OK';
-  f.style.color = q==='PERFECT' ? '#ff6b35' : q==='GOOD' ? '#4ade80' : q==='OVER' ? '#f43f5e' : '#cbd5e1';
+  f.textContent = q==='PERFECT' ? 'PERFECT!' : q==='GOOD' ? 'GOOD' : 'OK';
+  f.style.color = q==='PERFECT' ? '#ff6b35' : q==='GOOD' ? '#4ade80' : '#cbd5e1';
   f.style.left = sc.x+'px'; f.style.top = sc.y+'px';
   f.classList.remove('pop'); void f.offsetWidth; f.classList.add('pop');
 }
@@ -812,60 +804,84 @@ function startGame(){
 function pointerXY(e){ const t = e.touches? e.touches[0] : e; return { x:t.clientX, y:t.clientY }; }
 function worldToScreen(v){ const t = v.clone().project(camera); return { x:(t.x*0.5+0.5)*innerWidth, y:(-t.y*0.5+0.5)*innerHeight }; }
 
-// ---------- 入力：ためて離す（チャージ＆リリース） ----------
-let charging = false, charge = 0;
-const CHARGE_MS = 850;             // 0→1.0 に到達する時間
-const SWEET_LO = 0.72;             // スイートゾーン下限（右ゲージ表示と一致）
-function holeCenterScreen(){ return worldToScreen(new THREE.Vector3(HOLE_X, RIM_Y, 0)); }
-function updateChargeUI(){
-  const g = el('chargeGauge'); if(!g) return;
-  g.querySelector('.cfill').style.height = (Math.min(1, charge)*100) + '%';
-  g.classList.toggle('over', charge > 1.0);
+let digging = false, pryStart = null, pryCur = null, outDir = {x:0,y:-1}, outValid = true;
+function pryOutward(){
+  const ex = pryCur.x-pryStart.x, ey = pryCur.y-pryStart.y;
+  return outValid ? (ex*outDir.x + ey*outDir.y) : Math.hypot(ex, ey);   // 真上視点では総ドラッグ量
 }
 
 function onDown(e){
   if(state !== STATE.PLAYING) return;
-  if(!marker.visible) return;
-  if(performance.now() < toolCoolUntil) return;
+  if(!marker.visible) return;                        // キャップが開く前は不可
+  if(performance.now() < toolCoolUntil) return;     // 道具が折れて使用不可中
   const p = pointerXY(e);
-  const c = holeCenterScreen();
-  const R = Math.min(innerWidth, innerHeight) * 0.34;
-  if(Math.hypot(p.x-c.x, p.y-c.y) > R) return;        // 遠い → 視点回転に任せる
+  const m = worldToScreen(markerWorld());
+  const cen = worldToScreen(new THREE.Vector3(0, RIM_Y, 0));
+  const aimR = Math.min(innerWidth, innerHeight) * 0.30 * Math.max(0.8, D.aimMul);   // 開始判定は広めで反応良く
+  if(Math.hypot(p.x-m.x, p.y-m.y) > aimR) return;   // 隙間外 → 視点回転に任せる
   ensureAudio();
   controls.enabled = false;
-  charging = true; charge = 0; updateChargeUI();
+  digging = true; pryStart = { x:p.x, y:p.y }; pryCur = { x:p.x, y:p.y };
+  const ox = m.x-cen.x, oy = m.y-cen.y; const ol = Math.hypot(ox,oy);
+  outValid = ol > 14; outDir = outValid ? { x:ox/ol, y:oy/ol } : { x:0, y:-1 };
   el('hint').style.opacity = '0';
 }
-
-function onMove(e){ /* チャージは時間ベースなので移動不要 */ }
+function onMove(e){
+  if(!digging) return; pryCur = pointerXY(e);
+  const GOOD = Math.min(innerWidth, innerHeight) * 0.16;
+  toolLever = Math.max(0, Math.min(1, pryOutward() / GOOD));   // ドラッグに追従して道具がてこ動作
+}
 
 function onUp(e){
   controls.enabled = true;
-  if(!charging) return;
-  charging = false;
+  if(!digging){ return; }
+  digging = false;
+  if(e && e.clientX != null) pryCur = { x:e.clientX, y:e.clientY };   // 離した位置を確実に反映
+  if(!pryStart || !pryCur){ return; }
+
+  const outward = pryOutward();                     // 外向き成分(px)
+  const GOOD = Math.min(innerWidth, innerHeight) * 0.16;
   const T = TOOLS[tool];
-  const base = T.power * D.powerMul * stickType.gainMul * chainMul();
-  let q = 'OK', gain = 0;
-  if(charge > 1.0){
-    q = 'OVER'; streak = 0;
-    crumble = Math.min(1, crumble + 0.07*D.crumbleMul*stickType.crumbleMul);
-    if(T.canSnap){ toolCoolUntil = performance.now() + 700; snap(); } else { thunk(); }
-    buzz(150); addShake(0.3);
-  } else if(charge >= SWEET_LO){
-    q = 'PERFECT'; gain = base; streak++;
-    tick(320); buzz([8,22,46]); addShake(0.4); flash();
-  } else if(charge >= 0.4){
-    q = 'GOOD'; gain = base*0.55; streak++;
-    tick(220); buzz(20); addShake(0.2);
+  pries++;
+
+  if(outward <= GOOD*0.08){
+    // こじれていない＝奥に突いた → 押し込み
+    crumble = Math.min(1, crumble + 0.035*D.crumbleMul*stickType.crumbleMul);
+    looseness = Math.max(0, looseness - (T.pokeRisk ? 0.06 : 0.02));
+    streak = 0; updateChainUI(); thunk(); buzz(14);
+  } else if(T.canSnap && outward > GOOD*D.snapFactor){
+    // 力みすぎでつまようじが折れる
+    crumble = Math.min(1, crumble + 0.06*D.crumbleMul*stickType.crumbleMul);
+    toolCoolUntil = performance.now() + 800;
+    streak = 0; updateChainUI(); snap(); buzz(170); addShake(0.35);
   } else {
-    q = 'OK'; gain = base*0.28; streak++;
-    tick(160); buzz(12);
+    const force = Math.min(1.3, outward / GOOD);
+    // 狙い精度＝パーフェクト判定（中心に近い＋適正な力）
+    const m = worldToScreen(markerWorld());
+    const aimR = Math.min(innerWidth, innerHeight) * 0.20 * TOOLS[tool].aimMul * D.aimMul;
+    const aimRatio = Math.min(1, Math.hypot(pryStart.x-m.x, pryStart.y-m.y) / aimR);
+    const inForce = force >= 0.65 && force <= 1.2;
+    let quality='OK', qMul=1.0;
+    if(aimRatio < 0.45 && inForce){ quality='PERFECT'; qMul=1.9; }
+    else if(aimRatio < 0.8 && force >= 0.45){ quality='GOOD'; qMul=1.25; }
+    streak++;
+    let gain = T.power * Math.min(1, force) * D.powerMul * stickType.gainMul * qMul * chainMul();
+    if(markerTight && !T.thin){ gain *= 0.4; crumble = Math.min(1, crumble + 0.03*D.crumbleMul*stickType.crumbleMul); streak = Math.max(0, streak-1); }
+    if(T.lift && looseness > 0.55) gain *= 1.6;                                         // フックは浮いてから強い
+    if(T.finisher && looseness > 0.7) gain = Math.max(gain, 0.5*D.powerMul);            // ピンセットの仕上げ
+    looseness = Math.min(1, looseness + gain);
+    crumbs(markerWorld());
+    tick(170 + looseness*220 + (quality==='PERFECT'?220:0));
+    buzz(quality==='PERFECT' ? [8,22,46] : Math.round(10 + gain*130));
+    addShake(0.1 + gain*0.5 + (quality==='PERFECT'?0.2:0));
+    if(quality==='PERFECT') flash();
+    showPryFx(quality, m); updateChainUI();
+    toolLever = 0.9;   // こじり切った瞬間の手元の跳ね
   }
-  if(gain > 0){ looseness = Math.min(1, looseness + gain); pries++; crumbs(markerWorld()); }
-  toolLever = 0.9;
-  updateChainUI(); updateMeters(); updateFragVisual();
-  showPryFx(q, worldToScreen(markerWorld()));
-  charge = 0; updateChargeUI();
+
+  updateFragVisual(); setMarker(); updateMeters();
+  pryStart = pryCur = null;
+
   if(looseness >= 1) winDig();
   else if(crumble >= 1) failDig();
 }
@@ -965,20 +981,20 @@ function animate(){
   }
 
   // 道具：隙間へ追従＋てこ動作（離すと戻る）
-  if(toolPivot.visible){ updateToolTransform(); if(!charging) toolLever *= 0.86; }
-  if(charging){ charge = Math.min(1.3, charge + dt/CHARGE_MS); updateChargeUI(); toolLever = Math.min(1,charge)*0.7; }
+  if(toolPivot.visible){ updateToolTransform(); if(!digging) toolLever *= 0.86; }
 
   // マーカー：位置・色・脈動
   if(marker.visible){
-    const sc = holeCenterScreen(); const gh = el('gapHud');
+    const sc = worldToScreen(markerWorld()); const gh = el('gapHud');
     gh.style.left = sc.x + 'px'; gh.style.top = sc.y + 'px';
-    gh.classList.add('show'); el('chargeGauge').classList.add('show');
+    gh.style.color = markerTight ? '#5a8cff' : '#ff6b35';
+    gh.classList.add('show');
   } else {
-    el('gapHud').classList.remove('show'); el('chargeGauge').classList.remove('show');
+    el('gapHud').classList.remove('show');
   }
 
   // 沈み戻り（高レベル）＋待機中の微かな揺れで誘う
-  if(state===STATE.PLAYING && !charging){
+  if(state===STATE.PLAYING && !digging){
     if(D.sink > 0 && looseness > 0){ looseness = Math.max(0, looseness - D.sink*dt/1000); updateMeters(); }
     frag.position.y = FRAG_BASE_Y + looseness*0.85 + Math.sin(now*0.003)*0.012;
   }
