@@ -134,6 +134,13 @@
   #gapHud { position: fixed; left: 0; top: 0; transform: translate(-50%,-50%); pointer-events: none; z-index: 4; opacity: 0; transition: opacity .2s; color: var(--accent); }
   #gapHud.show { opacity: 1; }
   #gapHud .ring { width: 82px; height: 82px; border-radius: 50%; border: 3px dashed currentColor; box-shadow: 0 0 16px currentColor; }
+  #chargeGauge { position:fixed; right:18px; top:50%; transform:translateY(-50%); width:26px; height:200px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); border-radius:14px; overflow:hidden; z-index:5; opacity:0; transition:opacity .2s; }
+  #chargeGauge.show { opacity:1; }
+  #chargeGauge .sweet { position:absolute; left:0; right:0; bottom:72%; height:28%; background:rgba(74,222,128,0.35); border-top:2px solid #4ade80; border-bottom:2px solid #4ade80; }
+  #chargeGauge .cfill { position:absolute; left:0; right:0; bottom:0; height:0%; background:linear-gradient(#9fe8ff,#5a8cff); transition:height .04s linear; }
+  #chargeGauge.over .cfill { background:#f43f5e; }
+  #chargeGauge .glbl { position:absolute; bottom:-22px; left:50%; transform:translateX(-50%); white-space:nowrap; font-size:11px; font-weight:700; opacity:.8; }
+  body.light #chargeGauge { background:rgba(0,0,0,0.06); border-color:rgba(0,0,0,0.15); }
   #gapHud .lbl { text-align: center; margin-top: 4px; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: currentColor; text-shadow: 0 0 6px rgba(0,0,0,.6); }
   @keyframes gapPulse { 0%,100% { transform: scale(1); opacity:.72;} 50% { transform: scale(1.06); opacity:1;} }
   #gapHud .ring { position: relative; }
@@ -187,7 +194,8 @@
 <div id="flash"></div>
 <button id="bgToggle" aria-label="背景の明暗を切り替え">☀</button>
 <button id="helpBtn" aria-label="遊び方">?</button>
-<div id="gapHud"><div class="ring"></div><div class="lbl">ふちをなぞって回す</div></div>
+<div id="gapHud"><div class="ring"></div><div class="lbl">長押し→スイートで離す</div></div>
+<div id="chargeGauge"><div class="sweet"></div><div class="cfill"></div><div class="glbl">ためて離す</div></div>
 <div id="chain"></div>
 <div id="pryFx"></div>
 <div id="stickType"></div>
@@ -239,8 +247,8 @@
     <h2>遊び方</h2>
     <ol>
       <li><b>目的</b>：チャンバーに折れて詰まったスティックを道具でこじり出す。<b>「浮き具合」を100%</b>にすれば救出成功。</li>
-      <li><b>こじり方</b>：<b>光る円のふちを指でぐるぐるなぞって回す</b>。回すほど少しずつ浮きます。</li>
-      <li><b>コツ</b>：<b>同じ向きに回し続ける</b>とRUSH倍率アップ。<b>逆回転・回しすぎ（速すぎ）</b>は「崩れ」が増えるので注意。タイミングは関係ありません。</li>
+      <li><b>こじり方</b>：穴を<b>長押しして右のゲージをためる</b>→<b>緑のゾーンで指を離す</b>と大きく浮く（PERFECT）。</li>
+      <li><b>コツ</b>：緑より早く離すと小さめ、<b>ためすぎ（赤）は「崩れ」</b>。連続でPERFECTを決めると<b>RUSH倍率</b>アップ。</li>
       <li><b>道具の使い分け</b>：<b>青いリング＝細いすき間</b>で、細い道具（針・フック）向き。太い<b>つまようじ</b>は普通のすき間で最強。ボタンの<b>●の数＝ほじりやすさ</b>。使える道具はレベルごとに変わります。</li>
       <li><b>連続で決めると RUSH ×倍率</b>で浮きアップ。<b>突くだけ・力みすぎ・太い道具で細いすき間</b>は<b>「崩れ」</b>が増え、満タンで失敗。</li>
       <li><b>視点</b>：すき間以外をドラッグで回転／ピンチでズーム。</li>
@@ -767,8 +775,8 @@ function updateChainUI(){
 }
 function showPryFx(q, sc){
   const f = el('pryFx');
-  f.textContent = q==='PERFECT' ? 'PERFECT!' : q==='GOOD' ? 'GOOD' : 'OK';
-  f.style.color = q==='PERFECT' ? '#ff6b35' : q==='GOOD' ? '#4ade80' : '#cbd5e1';
+  f.textContent = q==='PERFECT' ? 'PERFECT!' : q==='GOOD' ? 'GOOD' : q==='OVER' ? 'ためすぎ!' : 'OK';
+  f.style.color = q==='PERFECT' ? '#ff6b35' : q==='GOOD' ? '#4ade80' : q==='OVER' ? '#f43f5e' : '#cbd5e1';
   f.style.left = sc.x+'px'; f.style.top = sc.y+'px';
   f.classList.remove('pop'); void f.offsetWidth; f.classList.add('pop');
 }
@@ -804,64 +812,62 @@ function startGame(){
 function pointerXY(e){ const t = e.touches? e.touches[0] : e; return { x:t.clientX, y:t.clientY }; }
 function worldToScreen(v){ const t = v.clone().project(camera); return { x:(t.x*0.5+0.5)*innerWidth, y:(-t.y*0.5+0.5)*innerHeight }; }
 
-// ---------- 入力：ぐるぐる回してこじる（サークルスクレイプ） ----------
-let scraping = false, lastAng = 0, scrapeDir = 0, scrapeAccum = 0, lastMoveT = 0;
+// ---------- 入力：ためて離す（チャージ＆リリース） ----------
+let charging = false, charge = 0;
+const CHARGE_MS = 850;             // 0→1.0 に到達する時間
+const SWEET_LO = 0.72;             // スイートゾーン下限（右ゲージ表示と一致）
 function holeCenterScreen(){ return worldToScreen(new THREE.Vector3(HOLE_X, RIM_Y, 0)); }
-function angleAt(p){ const c = holeCenterScreen(); return Math.atan2(p.y - c.y, p.x - c.x); }
+function updateChargeUI(){
+  const g = el('chargeGauge'); if(!g) return;
+  g.querySelector('.cfill').style.height = (Math.min(1, charge)*100) + '%';
+  g.classList.toggle('over', charge > 1.0);
+}
 
 function onDown(e){
   if(state !== STATE.PLAYING) return;
-  if(!marker.visible) return;                        // キャップが開く前は不可
-  if(performance.now() < toolCoolUntil) return;     // 道具が折れて使用不可中
+  if(!marker.visible) return;
+  if(performance.now() < toolCoolUntil) return;
   const p = pointerXY(e);
   const c = holeCenterScreen();
-  const R = Math.min(innerWidth, innerHeight) * 0.34; // 穴まわりの操作領域（広め）
+  const R = Math.min(innerWidth, innerHeight) * 0.34;
   if(Math.hypot(p.x-c.x, p.y-c.y) > R) return;        // 遠い → 視点回転に任せる
   ensureAudio();
   controls.enabled = false;
-  scraping = true; scrapeDir = 0; lastAng = angleAt(p); lastMoveT = performance.now();
+  charging = true; charge = 0; updateChargeUI();
   el('hint').style.opacity = '0';
 }
 
-function onMove(e){
-  if(!scraping) return;
-  const p = pointerXY(e);
-  const a = angleAt(p);
-  let d = a - lastAng;
-  if(d > Math.PI) d -= 2*Math.PI; else if(d < -Math.PI) d += 2*Math.PI;
-  lastAng = a;
-  if(Math.abs(d) < 0.0006) return;
-  const now = performance.now(); const dt = Math.max(8, now - lastMoveT); lastMoveT = now;
-
-  markerAngle += d;                       // 道具が指に合わせて縁を周回
-  const dir = d > 0 ? 1 : -1;
-  if(scrapeDir === 0) scrapeDir = dir;
-  const T = TOOLS[tool];
-  const speed = Math.abs(d) / dt;         // rad/ms
-
-  if(dir === scrapeDir){
-    let per = (Math.abs(d)/(2*Math.PI)) * T.power * D.powerMul * stickType.gainMul * chainMul();
-    if(speed > 0.02){ per *= 0.3; crumble = Math.min(1, crumble + Math.abs(d)/(2*Math.PI)*0.10*D.crumbleMul*stickType.crumbleMul); } // 速すぎ＝空回り＆崩れ
-    looseness = Math.min(1, looseness + per);
-    scrapeAccum += Math.abs(d);
-    while(scrapeAccum >= Math.PI/2){       // 1/4周ごとの手応え
-      scrapeAccum -= Math.PI/2; pries++;
-      streak = Math.min(streak + 1, 30); updateChainUI();
-      tick(150 + looseness*240); buzz(10); crumbs(markerWorld()); toolLever = 0.7;
-    }
-  } else {
-    crumble = Math.min(1, crumble + Math.abs(d)/(2*Math.PI)*0.18*D.crumbleMul*stickType.crumbleMul); // 逆回転＝崩れ
-    streak = 0; updateChainUI(); scrapeDir = dir; thunk();
-  }
-
-  updateMeters(); updateFragVisual();
-  if(looseness >= 1){ scraping = false; controls.enabled = true; winDig(); }
-  else if(crumble >= 1){ scraping = false; controls.enabled = true; failDig(); }
-}
+function onMove(e){ /* チャージは時間ベースなので移動不要 */ }
 
 function onUp(e){
   controls.enabled = true;
-  scraping = false; scrapeDir = 0; scrapeAccum = 0; toolLever = 0.15;
+  if(!charging) return;
+  charging = false;
+  const T = TOOLS[tool];
+  const base = T.power * D.powerMul * stickType.gainMul * chainMul();
+  let q = 'OK', gain = 0;
+  if(charge > 1.0){
+    q = 'OVER'; streak = 0;
+    crumble = Math.min(1, crumble + 0.07*D.crumbleMul*stickType.crumbleMul);
+    if(T.canSnap){ toolCoolUntil = performance.now() + 700; snap(); } else { thunk(); }
+    buzz(150); addShake(0.3);
+  } else if(charge >= SWEET_LO){
+    q = 'PERFECT'; gain = base; streak++;
+    tick(320); buzz([8,22,46]); addShake(0.4); flash();
+  } else if(charge >= 0.4){
+    q = 'GOOD'; gain = base*0.55; streak++;
+    tick(220); buzz(20); addShake(0.2);
+  } else {
+    q = 'OK'; gain = base*0.28; streak++;
+    tick(160); buzz(12);
+  }
+  if(gain > 0){ looseness = Math.min(1, looseness + gain); pries++; crumbs(markerWorld()); }
+  toolLever = 0.9;
+  updateChainUI(); updateMeters(); updateFragVisual();
+  showPryFx(q, worldToScreen(markerWorld()));
+  charge = 0; updateChargeUI();
+  if(looseness >= 1) winDig();
+  else if(crumble >= 1) failDig();
 }
 
 // =========================================================
@@ -959,20 +965,20 @@ function animate(){
   }
 
   // 道具：隙間へ追従＋てこ動作（離すと戻る）
-  if(toolPivot.visible){ updateToolTransform(); if(!scraping) toolLever *= 0.86; }
+  if(toolPivot.visible){ updateToolTransform(); if(!charging) toolLever *= 0.86; }
+  if(charging){ charge = Math.min(1.3, charge + dt/CHARGE_MS); updateChargeUI(); toolLever = Math.min(1,charge)*0.7; }
 
   // マーカー：位置・色・脈動
   if(marker.visible){
-    if(state===STATE.PLAYING && !scraping) markerAngle += dt*0.0016;   // 待機中は道具がゆっくり周回（ヒント）
     const sc = holeCenterScreen(); const gh = el('gapHud');
     gh.style.left = sc.x + 'px'; gh.style.top = sc.y + 'px';
-    gh.classList.add('show');
+    gh.classList.add('show'); el('chargeGauge').classList.add('show');
   } else {
-    el('gapHud').classList.remove('show');
+    el('gapHud').classList.remove('show'); el('chargeGauge').classList.remove('show');
   }
 
   // 沈み戻り（高レベル）＋待機中の微かな揺れで誘う
-  if(state===STATE.PLAYING && !scraping){
+  if(state===STATE.PLAYING && !charging){
     if(D.sink > 0 && looseness > 0){ looseness = Math.max(0, looseness - D.sink*dt/1000); updateMeters(); }
     frag.position.y = FRAG_BASE_Y + looseness*0.85 + Math.sin(now*0.003)*0.012;
   }
