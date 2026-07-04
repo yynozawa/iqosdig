@@ -133,7 +133,7 @@
   /* ---- 光る隙間の画面オーバーレイ（見やすい目印） ---- */
   #gapHud { position: fixed; left: 0; top: 0; transform: translate(-50%,-50%); pointer-events: none; z-index: 4; opacity: 0; transition: opacity .2s; color: var(--accent); }
   #gapHud.show { opacity: 1; }
-  #gapHud .ring { width: 60px; height: 60px; border-radius: 50%; border: 4px solid currentColor; box-shadow: 0 0 18px currentColor, inset 0 0 12px currentColor; }
+  #gapHud .ring { width: 82px; height: 82px; border-radius: 50%; border: 3px dashed currentColor; box-shadow: 0 0 16px currentColor; }
   #gapHud .lbl { text-align: center; margin-top: 4px; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: currentColor; text-shadow: 0 0 6px rgba(0,0,0,.6); }
   @keyframes gapPulse { 0%,100% { transform: scale(1); opacity:.72;} 50% { transform: scale(1.06); opacity:1;} }
   #gapHud .ring { position: relative; }
@@ -187,7 +187,7 @@
 <div id="flash"></div>
 <button id="bgToggle" aria-label="背景の明暗を切り替え">☀</button>
 <button id="helpBtn" aria-label="遊び方">?</button>
-<div id="gapHud"><div class="ring"></div><div class="lbl">ここをこじる</div></div>
+<div id="gapHud"><div class="ring"></div><div class="lbl">ふちをなぞって回す</div></div>
 <div id="chain"></div>
 <div id="pryFx"></div>
 <div id="stickType"></div>
@@ -239,8 +239,8 @@
     <h2>遊び方</h2>
     <ol>
       <li><b>目的</b>：チャンバーに折れて詰まったスティックを道具でこじり出す。<b>「浮き具合」を100%</b>にすれば救出成功。</li>
-      <li><b>こじり方</b>：<b>光るリング（＝すき間）を狙って、外側へスッと弾く（フリック）</b>。これで少しずつ浮きます。</li>
-      <li><b>大きく浮かせるコツ</b>：リングの<b>中心をピタッ</b>と押して、<b>ちょうどいい強さ</b>で外へ弾くと<b>PERFECT</b>（浮きが大きい）。<br>※<b>タイミングは関係ありません</b>。リングの脈打ちはただの目印です。あわてず“中心＋外へ弾く”。</li>
+      <li><b>こじり方</b>：<b>光る円のふちを指でぐるぐるなぞって回す</b>。回すほど少しずつ浮きます。</li>
+      <li><b>コツ</b>：<b>同じ向きに回し続ける</b>とRUSH倍率アップ。<b>逆回転・回しすぎ（速すぎ）</b>は「崩れ」が増えるので注意。タイミングは関係ありません。</li>
       <li><b>道具の使い分け</b>：<b>青いリング＝細いすき間</b>で、細い道具（針・フック）向き。太い<b>つまようじ</b>は普通のすき間で最強。ボタンの<b>●の数＝ほじりやすさ</b>。使える道具はレベルごとに変わります。</li>
       <li><b>連続で決めると RUSH ×倍率</b>で浮きアップ。<b>突くだけ・力みすぎ・太い道具で細いすき間</b>は<b>「崩れ」</b>が増え、満タンで失敗。</li>
       <li><b>視点</b>：すき間以外をドラッグで回転／ピンチでズーム。</li>
@@ -804,86 +804,64 @@ function startGame(){
 function pointerXY(e){ const t = e.touches? e.touches[0] : e; return { x:t.clientX, y:t.clientY }; }
 function worldToScreen(v){ const t = v.clone().project(camera); return { x:(t.x*0.5+0.5)*innerWidth, y:(-t.y*0.5+0.5)*innerHeight }; }
 
-let digging = false, pryStart = null, pryCur = null, outDir = {x:0,y:-1}, outValid = true;
-function pryOutward(){
-  const ex = pryCur.x-pryStart.x, ey = pryCur.y-pryStart.y;
-  return outValid ? (ex*outDir.x + ey*outDir.y) : Math.hypot(ex, ey);   // 真上視点では総ドラッグ量
-}
+// ---------- 入力：ぐるぐる回してこじる（サークルスクレイプ） ----------
+let scraping = false, lastAng = 0, scrapeDir = 0, scrapeAccum = 0, lastMoveT = 0;
+function holeCenterScreen(){ return worldToScreen(new THREE.Vector3(HOLE_X, RIM_Y, 0)); }
+function angleAt(p){ const c = holeCenterScreen(); return Math.atan2(p.y - c.y, p.x - c.x); }
 
 function onDown(e){
   if(state !== STATE.PLAYING) return;
   if(!marker.visible) return;                        // キャップが開く前は不可
   if(performance.now() < toolCoolUntil) return;     // 道具が折れて使用不可中
   const p = pointerXY(e);
-  const m = worldToScreen(markerWorld());
-  const cen = worldToScreen(new THREE.Vector3(0, RIM_Y, 0));
-  const aimR = Math.min(innerWidth, innerHeight) * 0.30 * Math.max(0.8, D.aimMul);   // 開始判定は広めで反応良く
-  if(Math.hypot(p.x-m.x, p.y-m.y) > aimR) return;   // 隙間外 → 視点回転に任せる
+  const c = holeCenterScreen();
+  const R = Math.min(innerWidth, innerHeight) * 0.34; // 穴まわりの操作領域（広め）
+  if(Math.hypot(p.x-c.x, p.y-c.y) > R) return;        // 遠い → 視点回転に任せる
   ensureAudio();
   controls.enabled = false;
-  digging = true; pryStart = { x:p.x, y:p.y }; pryCur = { x:p.x, y:p.y };
-  const ox = m.x-cen.x, oy = m.y-cen.y; const ol = Math.hypot(ox,oy);
-  outValid = ol > 14; outDir = outValid ? { x:ox/ol, y:oy/ol } : { x:0, y:-1 };
+  scraping = true; scrapeDir = 0; lastAng = angleAt(p); lastMoveT = performance.now();
   el('hint').style.opacity = '0';
 }
+
 function onMove(e){
-  if(!digging) return; pryCur = pointerXY(e);
-  const GOOD = Math.min(innerWidth, innerHeight) * 0.16;
-  toolLever = Math.max(0, Math.min(1, pryOutward() / GOOD));   // ドラッグに追従して道具がてこ動作
+  if(!scraping) return;
+  const p = pointerXY(e);
+  const a = angleAt(p);
+  let d = a - lastAng;
+  if(d > Math.PI) d -= 2*Math.PI; else if(d < -Math.PI) d += 2*Math.PI;
+  lastAng = a;
+  if(Math.abs(d) < 0.0006) return;
+  const now = performance.now(); const dt = Math.max(8, now - lastMoveT); lastMoveT = now;
+
+  markerAngle += d;                       // 道具が指に合わせて縁を周回
+  const dir = d > 0 ? 1 : -1;
+  if(scrapeDir === 0) scrapeDir = dir;
+  const T = TOOLS[tool];
+  const speed = Math.abs(d) / dt;         // rad/ms
+
+  if(dir === scrapeDir){
+    let per = (Math.abs(d)/(2*Math.PI)) * T.power * D.powerMul * stickType.gainMul * chainMul();
+    if(speed > 0.02){ per *= 0.3; crumble = Math.min(1, crumble + Math.abs(d)/(2*Math.PI)*0.10*D.crumbleMul*stickType.crumbleMul); } // 速すぎ＝空回り＆崩れ
+    looseness = Math.min(1, looseness + per);
+    scrapeAccum += Math.abs(d);
+    while(scrapeAccum >= Math.PI/2){       // 1/4周ごとの手応え
+      scrapeAccum -= Math.PI/2; pries++;
+      streak = Math.min(streak + 1, 30); updateChainUI();
+      tick(150 + looseness*240); buzz(10); crumbs(markerWorld()); toolLever = 0.7;
+    }
+  } else {
+    crumble = Math.min(1, crumble + Math.abs(d)/(2*Math.PI)*0.18*D.crumbleMul*stickType.crumbleMul); // 逆回転＝崩れ
+    streak = 0; updateChainUI(); scrapeDir = dir; thunk();
+  }
+
+  updateMeters(); updateFragVisual();
+  if(looseness >= 1){ scraping = false; controls.enabled = true; winDig(); }
+  else if(crumble >= 1){ scraping = false; controls.enabled = true; failDig(); }
 }
 
 function onUp(e){
   controls.enabled = true;
-  if(!digging){ return; }
-  digging = false;
-  if(e && e.clientX != null) pryCur = { x:e.clientX, y:e.clientY };   // 離した位置を確実に反映
-  if(!pryStart || !pryCur){ return; }
-
-  const outward = pryOutward();                     // 外向き成分(px)
-  const GOOD = Math.min(innerWidth, innerHeight) * 0.16;
-  const T = TOOLS[tool];
-  pries++;
-
-  if(outward <= GOOD*0.08){
-    // こじれていない＝奥に突いた → 押し込み
-    crumble = Math.min(1, crumble + 0.035*D.crumbleMul*stickType.crumbleMul);
-    looseness = Math.max(0, looseness - (T.pokeRisk ? 0.06 : 0.02));
-    streak = 0; updateChainUI(); thunk(); buzz(14);
-  } else if(T.canSnap && outward > GOOD*D.snapFactor){
-    // 力みすぎでつまようじが折れる
-    crumble = Math.min(1, crumble + 0.06*D.crumbleMul*stickType.crumbleMul);
-    toolCoolUntil = performance.now() + 800;
-    streak = 0; updateChainUI(); snap(); buzz(170); addShake(0.35);
-  } else {
-    const force = Math.min(1.3, outward / GOOD);
-    // 狙い精度＝パーフェクト判定（中心に近い＋適正な力）
-    const m = worldToScreen(markerWorld());
-    const aimR = Math.min(innerWidth, innerHeight) * 0.20 * TOOLS[tool].aimMul * D.aimMul;
-    const aimRatio = Math.min(1, Math.hypot(pryStart.x-m.x, pryStart.y-m.y) / aimR);
-    const inForce = force >= 0.65 && force <= 1.2;
-    let quality='OK', qMul=1.0;
-    if(aimRatio < 0.45 && inForce){ quality='PERFECT'; qMul=1.9; }
-    else if(aimRatio < 0.8 && force >= 0.45){ quality='GOOD'; qMul=1.25; }
-    streak++;
-    let gain = T.power * Math.min(1, force) * D.powerMul * stickType.gainMul * qMul * chainMul();
-    if(markerTight && !T.thin){ gain *= 0.4; crumble = Math.min(1, crumble + 0.03*D.crumbleMul*stickType.crumbleMul); streak = Math.max(0, streak-1); }
-    if(T.lift && looseness > 0.55) gain *= 1.6;                                         // フックは浮いてから強い
-    if(T.finisher && looseness > 0.7) gain = Math.max(gain, 0.5*D.powerMul);            // ピンセットの仕上げ
-    looseness = Math.min(1, looseness + gain);
-    crumbs(markerWorld());
-    tick(170 + looseness*220 + (quality==='PERFECT'?220:0));
-    buzz(quality==='PERFECT' ? [8,22,46] : Math.round(10 + gain*130));
-    addShake(0.1 + gain*0.5 + (quality==='PERFECT'?0.2:0));
-    if(quality==='PERFECT') flash();
-    showPryFx(quality, m); updateChainUI();
-    toolLever = 0.9;   // こじり切った瞬間の手元の跳ね
-  }
-
-  updateFragVisual(); setMarker(); updateMeters();
-  pryStart = pryCur = null;
-
-  if(looseness >= 1) winDig();
-  else if(crumble >= 1) failDig();
+  scraping = false; scrapeDir = 0; scrapeAccum = 0; toolLever = 0.15;
 }
 
 // =========================================================
@@ -981,20 +959,20 @@ function animate(){
   }
 
   // 道具：隙間へ追従＋てこ動作（離すと戻る）
-  if(toolPivot.visible){ updateToolTransform(); if(!digging) toolLever *= 0.86; }
+  if(toolPivot.visible){ updateToolTransform(); if(!scraping) toolLever *= 0.86; }
 
   // マーカー：位置・色・脈動
   if(marker.visible){
-    const sc = worldToScreen(markerWorld()); const gh = el('gapHud');
+    if(state===STATE.PLAYING && !scraping) markerAngle += dt*0.0016;   // 待機中は道具がゆっくり周回（ヒント）
+    const sc = holeCenterScreen(); const gh = el('gapHud');
     gh.style.left = sc.x + 'px'; gh.style.top = sc.y + 'px';
-    gh.style.color = markerTight ? '#5a8cff' : '#ff6b35';
     gh.classList.add('show');
   } else {
     el('gapHud').classList.remove('show');
   }
 
   // 沈み戻り（高レベル）＋待機中の微かな揺れで誘う
-  if(state===STATE.PLAYING && !digging){
+  if(state===STATE.PLAYING && !scraping){
     if(D.sink > 0 && looseness > 0){ looseness = Math.max(0, looseness - D.sink*dt/1000); updateMeters(); }
     frag.position.y = FRAG_BASE_Y + looseness*0.85 + Math.sin(now*0.003)*0.012;
   }
