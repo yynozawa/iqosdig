@@ -241,7 +241,7 @@
       <li><b>目的</b>：チャンバーに折れて詰まったスティックを道具でこじり出す。<b>「浮き具合」を100%</b>にすれば救出成功。</li>
       <li><b>こじり方</b>：<b>光るリング（＝すき間）を狙って、外側へスッと弾く（フリック）</b>。これで少しずつ浮きます。</li>
       <li><b>大きく浮かせるコツ</b>：リングの<b>中心をピタッ</b>と押して、<b>ちょうどいい強さ</b>で外へ弾くと<b>PERFECT</b>（浮きが大きい）。<br>※<b>タイミングは関係ありません</b>。リングの脈打ちはただの目印です。あわてず“中心＋外へ弾く”。</li>
-      <li><b>道具の使い分け</b>：<b>青いリング＝細いすき間</b>で、細い道具（針・フック）向き。太い<b>つまようじ</b>は普通のすき間で最強。ボタンの<b>●の数＝ほじりやすさ</b>。使える道具はレベルごとに変わります。</li>
+      <li><b>道具</b>：ボタンの<b>●の数＝ほじりやすさ</b>（1回のこじりで浮く量）。使える道具はレベルごとに変わります。</li>
       <li><b>連続で決めると RUSH ×倍率</b>で浮きアップ。<b>突くだけ・力みすぎ・太い道具で細いすき間</b>は<b>「崩れ」</b>が増え、満タンで失敗。</li>
       <li><b>視点</b>：すき間以外をドラッグで回転／ピンチでズーム。</li>
     </ol>
@@ -461,7 +461,7 @@ const markerMat = new THREE.MeshBasicMaterial({ color:0xff6b35, transparent:true
 const marker = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.015, 10, 20), markerMat);
 marker.rotation.x = Math.PI/2; marker.visible = false; scene.add(marker);
 let markerAngle = 0, markerTight = false;
-function setMarker(){ markerAngle = Math.random()*Math.PI*2; markerTight = Math.random() < D.tightChance; }
+function setMarker(){ markerAngle = Math.random()*Math.PI*2; markerTight = false; }
 function markerWorld(){ return new THREE.Vector3(HOLE_X + Math.cos(markerAngle)*MARK_R, RIM_Y, Math.sin(markerAngle)*MARK_R); }
 
 // ---------- 道具の3Dモデル（先端=ローカル原点、柄が+Y方向） ----------
@@ -866,7 +866,7 @@ function onUp(e){
     else if(aimRatio < 0.8 && force >= 0.45){ quality='GOOD'; qMul=1.25; }
     streak++;
     let gain = T.power * Math.min(1, force) * D.powerMul * stickType.gainMul * qMul * chainMul();
-    if(markerTight && !T.thin){ gain *= 0.4; crumble = Math.min(1, crumble + 0.03*D.crumbleMul*stickType.crumbleMul); streak = Math.max(0, streak-1); }
+    // すき間の細/太（青/オレンジ）による差は廃止。浮き量は道具のパワーのみで決まる
     if(T.lift && looseness > 0.55) gain *= 1.6;                                         // フックは浮いてから強い
     if(T.finisher && looseness > 0.7) gain = Math.max(gain, 0.5*D.powerMul);            // ピンセットの仕上げ
     looseness = Math.min(1, looseness + gain);
@@ -987,7 +987,7 @@ function animate(){
   if(marker.visible){
     const sc = worldToScreen(markerWorld()); const gh = el('gapHud');
     gh.style.left = sc.x + 'px'; gh.style.top = sc.y + 'px';
-    gh.style.color = markerTight ? '#5a8cff' : '#ff6b35';
+    gh.style.color = '#ff6b35';
     gh.classList.add('show');
   } else {
     el('gapHud').classList.remove('show');
