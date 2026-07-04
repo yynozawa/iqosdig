@@ -882,6 +882,7 @@ function onUp(e){
   updateFragVisual(); setMarker(); updateMeters();
   pryStart = pryCur = null;
 
+  if(tool === 'toothbrush' && pries >= 3){ toothbrushBreak(); return; }   // 歯ブラシは3ほじりで折れて次へ
   if(looseness >= 1) winDig();
   else if(crumble >= 1) failDig();
 }
@@ -890,6 +891,17 @@ function onUp(e){
 //  Outcomes
 // =========================================================
 let flying = false, flyV = 0;
+
+// 歯ブラシは3ほじりで折れて、すぐ次のラウンドへ（コンボは維持）
+function toothbrushBreak(){
+  state = STATE.LOST;
+  snap(); buzz(160); addShake(0.35);
+  marker.visible = false; toolPivot.visible = false;
+  el('meter').classList.remove('show'); toolsEl.classList.remove('show');
+  el('chain').classList.remove('show'); streak = 0;
+  const bf = el('bigFx'); bf.textContent = '🪥 折れた！'; bf.classList.remove('show'); void bf.offsetWidth; bf.classList.add('show');
+  setTimeout(()=> startGame(), 1300);
+}
 
 // 抜き演出（big=3連続以上でマシマシ）
 function extractFx(big){
