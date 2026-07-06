@@ -152,7 +152,7 @@
   /* ---- ホワイトモード（背景トグル） ---- */
   #bgToggle { position: fixed; top: calc(env(safe-area-inset-top, 16px) + 4px); left: 50%; transform: translateX(-50%); z-index: 8; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: var(--text); font-size: 18px; line-height: 1; cursor: pointer; backdrop-filter: blur(8px); }
   #bgToggle:active { transform: translateX(-50%) scale(.92); }
-  #helpBtn { position: fixed; top: calc(env(safe-area-inset-top, 16px) + 4px); left: 16px; z-index: 8; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: var(--text); font-size: 16px; font-weight:800; cursor: pointer; backdrop-filter: blur(8px); }
+  #helpBtn { position: fixed; top: calc(env(safe-area-inset-top, 16px) + 4px); left: calc(50% - 46px); transform: translateX(-50%); z-index: 8; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: var(--text); font-size: 16px; font-weight:800; cursor: pointer; backdrop-filter: blur(8px); }
   body.light #helpBtn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); }
   #howto { margin-top:2px; background:none; border:none; color:var(--text); opacity:.7; font-size:14px; text-decoration:underline; cursor:pointer; }
   #help { position: fixed; inset:0; z-index:20; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); padding:20px; }
@@ -709,7 +709,7 @@ function pickLoadout(){
   }
   gagLoadout = '';
   const thinKeys = keys.filter(k=>TOOLS[k].thin);
-  const n = 2 + Math.floor(Math.random()*2);
+  const n = 2;   // こじるアイテムは毎レベル2つまで
   const chosen = new Set();
   chosen.add(thinKeys[Math.floor(Math.random()*thinKeys.length)]);
   while(chosen.size < n) chosen.add(keys[Math.floor(Math.random()*keys.length)]);
@@ -882,7 +882,7 @@ function onUp(e){
   updateFragVisual(); setMarker(); updateMeters();
   pryStart = pryCur = null;
 
-  if(tool === 'toothbrush' && pries >= 3){ toothbrushBreak(); return; }   // 歯ブラシは3ほじりで折れて次へ
+  if(TOOLS[tool].junk && pries >= 3){ toothbrushBreak(); return; }   // 裏枠(歯ブラシ/耳かき)は3ほじりで折れて次へ
   if(looseness >= 1) winDig();
   else if(crumble >= 1) failDig();
 }
@@ -899,7 +899,7 @@ function toothbrushBreak(){
   marker.visible = false; toolPivot.visible = false;
   el('meter').classList.remove('show'); toolsEl.classList.remove('show');
   el('chain').classList.remove('show'); streak = 0;
-  const bf = el('bigFx'); bf.textContent = '🪥 折れた！'; bf.classList.remove('show'); void bf.offsetWidth; bf.classList.add('show');
+  const bf = el('bigFx'); bf.textContent = (TOOLS[tool].emoji||'') + ' 折れた！'; bf.classList.remove('show'); void bf.offsetWidth; bf.classList.add('show');
   setTimeout(()=> startGame(), 1300);
 }
 
