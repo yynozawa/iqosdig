@@ -157,6 +157,10 @@
   #helpBtn { position: fixed; top: calc(env(safe-area-inset-top, 16px) + 4px); left: calc(50% - 46px); transform: translateX(-50%); z-index: 8; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.08); color: var(--text); font-size: 16px; font-weight:800; cursor: pointer; backdrop-filter: blur(8px); }
   body.light #helpBtn { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.15); }
   #howto { margin-top:2px; background:none; border:none; color:var(--text); opacity:.7; font-size:14px; text-decoration:underline; cursor:pointer; }
+  #devices { display:flex; gap:8px; justify-content:center; margin:0 0 14px; }
+  .dev { background:rgba(255,255,255,0.06); border:1.5px solid rgba(255,255,255,0.16); color:var(--text); border-radius:12px; padding:7px 16px; font-size:13px; font-weight:700; cursor:pointer; }
+  .dev.sel { border-color:var(--accent); background:rgba(255,107,53,0.16); }
+  body.light .dev { background:rgba(0,0,0,0.05); border-color:rgba(0,0,0,0.14); }
   #help { position: fixed; inset:0; z-index:20; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); padding:20px; }
   #help.show { display:flex; }
   #help .helpCard { background:#1b1e2a; color:#f4f6fb; border:1px solid rgba(255,255,255,0.14); border-radius:16px; max-width:440px; width:100%; max-height:82vh; overflow:auto; padding:20px 22px; text-align:left; }
@@ -231,8 +235,9 @@
 <div id="title">
   <h1><small>KAIKAN HOJIHOJI</small>快感ほじほじ</h1>
   <p>IQOSのチャンバーに残った<b>中折れスティック</b>を、道具でほじって救出せよ。<br><b>光る隙間</b>に道具を差し込み、外側へこじって少しずつ浮かせる。<br>道具ごとに手応えが違う。雑にやると…崩れる。</p>
+  <div id="devices"></div>
   <div id="colors"></div>
-  <button id="startBtn">掘る</button>
+  <button id="startBtn">ほじる</button>
   <button id="howto">遊び方をみる</button>
 </div>
 
@@ -406,7 +411,29 @@ holder.add(capPivot);
 let capAngle = 0, capTarget = 0;         // 0=閉 1=開（スライド量）
 const CAP_SLIDE_X = -0.62, CAP_RISE_Y = 0.10;   // 横へ退避＋わずかに持ち上がる
 
-scene.add(holder);   // 角丸長方形断面なので全体スケールは不要
+// ---------- 別機種：細長い円筒（ペン型）ボディ ----------
+function cylProfile(){
+  const pts=[]; const R=0.34, BOT=-2.3, TOPS=2.05, OPENY=2.5, OPENR=0.18, rb=R;
+  for(let i=0;i<=10;i++){ const t=(i/10)*(Math.PI/2); pts.push(new THREE.Vector2(Math.max(0.001,rb*Math.sin(t)), BOT+rb*(1-Math.cos(t)))); }
+  pts.push(new THREE.Vector2(R, TOPS));
+  for(let i=1;i<=10;i++){ const t=(i/10)*(Math.PI/2); pts.push(new THREE.Vector2(OPENR+(R-OPENR)*Math.cos(t), TOPS+(OPENY-TOPS)*Math.sin(t))); }
+  return pts;
+}
+const cylBody = new THREE.Mesh(new THREE.LatheGeometry(cylProfile(), 64), bodyMat);
+cylBody.position.x = HOLE_X; cylBody.castShadow = true; cylBody.receiveShadow = true; cylBody.visible = false; holder.add(cylBody);
+const cylPanel = new THREE.Group(); cylPanel.position.set(HOLE_X, 0, 0); cylPanel.visible = false; holder.add(cylPanel);
+for(let i=0;i<4;i++){ const s = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.05,0.02), ledMat); s.position.set(0, 2.0 - i*0.09, 0.35); cylPanel.add(s); }
+{ const cb = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.04,24), new THREE.MeshStandardMaterial({color:0x2a2438,roughness:0.45,metalness:0.4})); cb.rotation.x = Math.PI/2; cb.position.set(0,1.5,0.35); cylPanel.add(cb); }
+let device = 'flat';
+function setDevice(t){
+  device = t; const flat = t === 'flat';
+  holderBody.visible = flat; sidePanel.visible = flat;
+  cylBody.visible = !flat; cylPanel.visible = !flat;
+  localStorage.setItem('nakaore_device', t);
+  for(const b of document.querySelectorAll('.dev')) b.classList.toggle('sel', b.dataset.dev===t);
+}
+
+scene.add(holder);   // 本体を追加
 
 // ---------- GLBモデル（あれば本体外観を差し替え。なければ手作りモデルを使用） ----------
 // 位置合わせ用パラメータ（モデルに合わせて後で調整）
@@ -1081,6 +1108,19 @@ function setDeviceColor(hex){
   }
   const saved = +(localStorage.getItem('nakaore_color') || 0x5a2bd6);
   setDeviceColor(DEVICE_COLORS.includes(saved) ? saved : 0x5a2bd6);
+})();
+
+// ---------- 機種選択（薄型 / ペン型） ----------
+(function(){
+  const wrap = el('devices'); if(!wrap) return;
+  const defs = [{k:'flat',n:'薄型'},{k:'cyl',n:'ペン型'}];
+  for(const d of defs){
+    const b = document.createElement('button');
+    b.className = 'dev'; b.dataset.dev = d.k; b.textContent = d.n;
+    b.addEventListener('click', ()=> setDevice(d.k));
+    wrap.appendChild(b);
+  }
+  setDevice(localStorage.getItem('nakaore_device') === 'cyl' ? 'cyl' : 'flat');
 })();
 
 const cdom = renderer.domElement;
